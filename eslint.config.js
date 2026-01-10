@@ -30,4 +30,13 @@ export default defineConfig([
   },
 
   skipFormatting,
+  {
+    rules: {
+      'vue/script-setup-uses-vars': 'error',
+      'vue/multi-word-component-names': 'off',
+      'vue/valid-template-root': 'off',
+      'no-unused-vars': 'off',
+      'no-undef': 'off',
+    },
+  },
 ])
