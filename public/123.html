@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>吃鸡开黑预定</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>吃鸡开黑预定</h1>
+        <p class="muted">提交你的参与时间，并按任意时间段查询谁在。</p>
+      </header>
+
+      <section class="card">
+        <h2>提交预定</h2>
+        <form id="createForm" class="grid" autocomplete="off">
+          <label>
+            <span>昵称</span>
+            <input id="name" name="name" required maxlength="40" placeholder="例如：Demon" />
+          </label>
+          <label>
+            <span>开始时间</span>
+            <input id="startLocal" name="startLocal" type="datetime-local" required />
+          </label>
+          <label>
+            <span>结束时间</span>
+            <input id="endLocal" name="endLocal" type="datetime-local" required />
+          </label>
+          <label class="full">
+            <span>备注（可选）</span>
+            <input id="note" name="note" maxlength="200" placeholder="例如：2-3 把就下" />
+          </label>
+          <div class="actions full">
+            <button type="submit">提交</button>
+            <span id="createStatus" class="status muted"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>按时间段查询</h2>
+        <form id="queryForm" class="grid" autocomplete="off">
+          <label>
+            <span>查询开始</span>
+            <input id="queryStartLocal" type="datetime-local" required />
+          </label>
+          <label>
+            <span>查询结束</span>
+            <input id="queryEndLocal" type="datetime-local" required />
+          </label>
+          <div class="actions">
+            <button type="submit">查询</button>
+            <span id="queryStatus" class="status muted"></span>
+          </div>
+        </form>
+
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>昵称</th>
+                <th>开始</th>
+                <th>结束</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody">
+              <tr>
+                <td colspan="4" class="muted">暂无结果</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="footer muted">
+        <span>时间以你浏览器本地时区输入/展示，服务端按 UTC 存储。</span>
+      </footer>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+

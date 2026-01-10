@@ -1,86 +1,729 @@
-<!doctype html>
-<html lang="zh-Hans">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>吃鸡开黑预定</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main class="container">
-      <header class="header">
-        <h1>吃鸡开黑预定</h1>
-        <p class="muted">提交你的参与时间，并按任意时间段查询谁在。</p>
-      </header>
-
-      <section class="card">
-        <h2>提交预定</h2>
-        <form id="createForm" class="grid" autocomplete="off">
-          <label>
-            <span>昵称</span>
-            <input id="name" name="name" required maxlength="40" placeholder="例如：Demon" />
-          </label>
-          <label>
-            <span>开始时间</span>
-            <input id="startLocal" name="startLocal" type="datetime-local" required />
-          </label>
-          <label>
-            <span>结束时间</span>
-            <input id="endLocal" name="endLocal" type="datetime-local" required />
-          </label>
-          <label class="full">
-            <span>备注（可选）</span>
-            <input id="note" name="note" maxlength="200" placeholder="例如：2-3 把就下" />
-          </label>
-          <div class="actions full">
-            <button type="submit">提交</button>
-            <span id="createStatus" class="status muted"></span>
-          </div>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>按时间段查询</h2>
-        <form id="queryForm" class="grid" autocomplete="off">
-          <label>
-            <span>查询开始</span>
-            <input id="queryStartLocal" type="datetime-local" required />
-          </label>
-          <label>
-            <span>查询结束</span>
-            <input id="queryEndLocal" type="datetime-local" required />
-          </label>
-          <div class="actions">
-            <button type="submit">查询</button>
-            <span id="queryStatus" class="status muted"></span>
-          </div>
-        </form>
-
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>昵称</th>
-                <th>开始</th>
-                <th>结束</th>
-                <th>备注</th>
-              </tr>
-            </thead>
-            <tbody id="resultsBody">
-              <tr>
-                <td colspan="4" class="muted">暂无结果</td>
-              </tr>
-            </tbody>
-          </table>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场地预定系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        @media (min-width: 992px) {
+            .app-container {
+                flex-direction: row;
+            }
+            
+            .booking-section {
+                flex: 1;
+            }
+            
+            .board-section {
+                flex: 2;
+            }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            height: 100%;
+        }
+        
+        .section-title {
+            font-size: 1.8rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title i {
+            color: #3498db;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .session-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .session-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #e0e0e0;
+            background: #f9f9f9;
+        }
+        
+        .session-option:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 7px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .session-option.selected {
+            border-color: #3498db;
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .session-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+        
+        .session-name {
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        
+        .session-time {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .btn-submit {
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn-submit:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 10px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+        
+        .board-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .filter-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .clear-btn {
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 2px solid #e74c3c;
+            background: white;
+            color: #e74c3c;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .clear-btn:hover {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .bookings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .booking-item {
+            padding: 20px;
+            border-radius: 10px;
+            background: #f9f9f9;
+            border-left: 5px solid #3498db;
+            transition: all 0.3s;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .booking-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .booking-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .booking-name {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: #2c3e50;
+        }
+        
+        .booking-session {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .morning-session {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f39c12;
+            border: 1px solid rgba(241, 196, 15, 0.3);
+        }
+        
+        .afternoon-session {
+            background: rgba(46, 204, 113, 0.2);
+            color: #27ae60;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+        
+        .evening-session {
+            background: rgba(155, 89, 182, 0.2);
+            color: #8e44ad;
+            border: 1px solid rgba(155, 89, 182, 0.3);
+        }
+        
+        .booking-time {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .booking-remark {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            font-style: italic;
+            color: #555;
+        }
+        
+        .empty-board {
+            text-align: center;
+            padding: 40px 20px;
+            color: #7f8c8d;
+        }
+        
+        .empty-board i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #bdc3c7;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #3498db;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            background: #2ecc71;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.5s ease-out;
+            z-index: 1000;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .session-label {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <header>
+                <h1><i class="fas fa-calendar-alt"></i> 场地预定系统</h1>
+                <p class="subtitle">填写预定信息并提交，查看公开预定看板（数据仅存储在浏览器本地）</p>
+            </header>
+            
+            <div class="app-container">
+                <!-- 预定表单区域 -->
+                <section class="booking-section">
+                    <div class="card">
+                        <h2 class="section-title"><i class="fas fa-edit"></i> 预定信息填写</h2>
+                        
+                        <form @submit.prevent="submitBooking">
+                            <div class="form-group">
+                                <label for="name"><i class="fas fa-user"></i> 预定人姓名</label>
+                                <input 
+                                    type="text" 
+                                    id="name" 
+                                    v-model="form.name" 
+                                    placeholder="请输入您的姓名" 
+                                    required
+                                >
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="remark"><i class="fas fa-sticky-note"></i> 备注信息</label>
+                                <textarea 
+                                    id="remark" 
+                                    v-model="form.remark" 
+                                    placeholder="请输入备注信息（可选）"
+                                ></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><i class="fas fa-clock"></i> 选择场次</label>
+                                <div class="session-options">
+                                    <div 
+                                        v-for="session in sessions" 
+                                        :key="session.id"
+                                        class="session-option"
+                                        :class="{selected: form.selectedSession === session.id}"
+                                        @click="form.selectedSession = session.id"
+                                    >
+                                        <div class="session-icon">
+                                            <i :class="session.icon"></i>
+                                        </div>
+                                        <div class="session-name">{{ session.name }}</div>
+                                        <div class="session-time">{{ session.time }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn-submit">
+                                <i class="fas fa-paper-plane"></i> 提交预定
+                            </button>
+                        </form>
+                        
+                        <div class="stats">
+                            <div class="stat-item">
+                                <div class="stat-value">{{ totalBookings }}</div>
+                                <div class="stat-label">总预定数</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">{{ morningBookings }}</div>
+                                <div class="stat-label">早场预定</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">{{ afternoonBookings }}</div>
+                                <div class="stat-label">下午场预定</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">{{ eveningBookings }}</div>
+                                <div class="stat-label">夜场预定</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- 预定看板区域 -->
+                <section class="board-section">
+                    <div class="card">
+                        <h2 class="section-title"><i class="fas fa-chalkboard"></i> 预定看板</h2>
+                        
+                        <div class="board-controls">
+                            <div class="filter-buttons">
+                                <button 
+                                    class="filter-btn" 
+                                    :class="{active: filter === 'all'}"
+                                    @click="filter = 'all'"
+                                >
+                                    全部
+                                </button>
+                                <button 
+                                    class="filter-btn" 
+                                    :class="{active: filter === 'morning'}"
+                                    @click="filter = 'morning'"
+                                >
+                                    早场
+                                </button>
+                                <button 
+                                    class="filter-btn" 
+                                    :class="{active: filter === 'afternoon'}"
+                                    @click="filter = 'afternoon'"
+                                >
+                                    下午场
+                                </button>
+                                <button 
+                                    class="filter-btn" 
+                                    :class="{active: filter === 'evening'}"
+                                    @click="filter = 'evening'"
+                                >
+                                    夜场
+                                </button>
+                            </div>
+                            
+                            <button class="clear-btn" @click="clearAllBookings">
+                                <i class="fas fa-trash-alt"></i> 清空所有预定
+                            </button>
+                        </div>
+                        
+                        <div class="bookings-list">
+                            <div 
+                                v-for="booking in filteredBookings" 
+                                :key="booking.id"
+                                class="booking-item"
+                            >
+                                <div class="booking-header">
+                                    <div class="booking-name">
+                                        <i class="fas fa-user-circle"></i> {{ booking.name }}
+                                    </div>
+                                    <div 
+                                        class="booking-session"
+                                        :class="getSessionClass(booking.session)"
+                                    >
+                                        <i :class="getSessionIcon(booking.session)"></i> {{ getSessionName(booking.session) }}
+                                    </div>
+                                </div>
+                                
+                                <div class="booking-time">
+                                    <i class="far fa-clock"></i> {{ formatDate(booking.date) }}
+                                </div>
+                                
+                                <div v-if="booking.remark" class="booking-remark">
+                                    <i class="fas fa-quote-left"></i> {{ booking.remark }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div v-if="filteredBookings.length === 0" class="empty-board">
+                            <i class="far fa-calendar-times"></i>
+                            <h3>暂无预定信息</h3>
+                            <p>您可以选择一个场次进行预定</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
+            <footer>
+                <p>© 2023 场地预定系统 | 纯前端应用，数据存储在浏览器本地</p>
+                <p>刷新页面或重新打开浏览器，数据依然存在</p>
+            </footer>
+            
+            <!-- 通知 -->
+            <div v-if="showNotification" class="notification">
+                <i class="fas fa-check-circle"></i> {{ notificationMessage }}
+            </div>
         </div>
-      </section>
+    </div>
 
-      <footer class="footer muted">
-        <span>时间以你浏览器本地时区输入/展示，服务端按 UTC 存储。</span>
-      </footer>
-    </main>
-
-    <script src="/app.js"></script>
-  </body>
+    <script>
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+        
+        createApp({
+            setup() {
+                // 表单数据
+                const form = ref({
+                    name: '',
+                    remark: '',
+                    selectedSession: 'morning'
+                });
+                
+                // 场次选项
+                const sessions = ref([
+                    { id: 'morning', name: '早场', time: '08:00 - 12:00', icon: 'fas fa-sun' },
+                    { id: 'afternoon', name: '下午场', time: '13:00 - 17:00', icon: 'fas fa-cloud-sun' },
+                    { id: 'evening', name: '夜场', time: '18:00 - 22:00', icon: 'fas fa-moon' }
+                ]);
+                
+                // 预定列表
+                const bookings = ref([]);
+                
+                // 筛选条件
+                const filter = ref('all');
+                
+                // 通知相关
+                const showNotification = ref(false);
+                const notificationMessage = ref('');
+                
+                // 计算属性
+                const totalBookings = computed(() => bookings.value.length);
+                const morningBookings = computed(() => 
+                    bookings.value.filter(b => b.session === 'morning').length
+                );
+                const afternoonBookings = computed(() => 
+                    bookings.value.filter(b => b.session === 'afternoon').length
+                );
+                const eveningBookings = computed(() => 
+                    bookings.value.filter(b => b.session === 'evening').length
+                );
+                
+                // 筛选后的预定列表
+                const filteredBookings = computed(() => {
+                    if (filter.value === 'all') return [...bookings.value].reverse();
+                    return bookings.value.filter(b => b.session === filter.value).reverse();
+                });
+                
+                // 提交预定
+                const submitBooking = () => {
+                    if (!form.value.name.trim()) {
+                        showNotificationMessage('请填写预定人姓名');
+                        return;
+                    }
+                    
+                    const newBooking = {
+                        id: Date.now(),
+                        name: form.value.name.trim(),
+                        remark: form.value.remark.trim(),
+                        session: form.value.selectedSession,
+                        date: new Date().toISOString()
+                    };
+                    
+                    bookings.value.push(newBooking);
+                    saveToLocalStorage();
+                    
+                    // 显示成功通知
+                    showNotificationMessage('预定成功！已添加到看板');
+                    
+                    // 重置表单（保留选中的场次）
+                    form.value.name = '';
+                    form.value.remark = '';
+                };
+                
+                // 显示通知
+                const showNotificationMessage = (message) => {
+                    notificationMessage.value = message;
+                    showNotification.value = true;
+                    setTimeout(() => {
+                        showNotification.value = false;
+                    }, 3000);
+                };
+                
+                // 获取场次名称
+                const getSessionName = (sessionId) => {
+                    const session = sessions.value.find(s => s.id === sessionId);
+                    return session ? session.name : '';
+                };
+                
+                // 获取场次图标
+                const getSessionIcon = (sessionId) => {
+                    const session = sessions.value.find(s => s.id === sessionId);
+                    return session ? session.icon : '';
+                };
+                
+                // 获取场次CSS类
+                const getSessionClass = (sessionId) => {
+                    return `${sessionId}-session`;
+                };
+                
+                // 格式化日期
+                const formatDate = (dateString) => {
+                    const date = new Date(dateString);
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                };
+                
+                // 清空所有预定
+                const clearAllBookings = () => {
+                    if (confirm('确定要清空所有预定记录吗？此操作不可恢复。')) {
+                        bookings.value = [];
+                        saveToLocalStorage();
+                        showNotificationMessage('已清空所有预定记录');
+                    }
+                };
+                
+                // 保存到本地存储
+                const saveToLocalStorage = () => {
+                    localStorage.setItem('bookingSystemData', JSON.stringify(bookings.value));
+                };
+                
+                // 从本地存储加载
+                const loadFromLocalStorage = () => {
+                    const savedData = localStorage.getItem('bookingSystemData');
+                    if (savedData) {
+                        try {
+                            bookings.value = JSON.parse(savedData);
+                        } catch (e) {
+                            console.error('加载数据失败:', e);
+                        }
+                    }
+                };
+                
+                // 页面加载时从本地存储读取数据
+                onMounted(() => {
+                    loadFromLocalStorage();
+                });
+                
+                // 监听bookings变化并保存到本地存储
+                watch(bookings, () => {
+                    saveToLocalStorage();
+                }, { deep: true });
+                
+                return {
+                    form,
+                    sessions,
+                    bookings,
+                    filter,
+                    showNotification,
+                    notificationMessage,
+                    totalBookings,
+                    morningBookings,
+                    afternoonBookings,
+                    eveningBookings,
+                    filteredBookings,
+                    submitBooking,
+                    clearAllBookings,
+                    getSessionName,
+                    getSessionIcon,
+                    getSessionClass,
+                    formatDate
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
 </html>
-
