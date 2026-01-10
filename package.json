@@ -1,0 +1,12 @@
+{
+  "name": "chicken-dinner-scheduler",
+  "private": true,
+  "scripts": {
+    "db:local": "wrangler d1 migrations apply chicken-dinner-scheduler --local",
+    "db:remote": "wrangler d1 migrations apply chicken-dinner-scheduler --remote",
+    "dev": "wrangler pages dev public --d1=DB"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}
