@@ -1,5 +1,6 @@
 # chicken-dinner-scheduler
 Scheduler for Chicken Dinner
+https://chicken.demonw.uk/
 
 ## 开黑预定（Cloudflare Pages + D1）
 
