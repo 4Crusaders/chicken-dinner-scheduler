@@ -7,6 +7,6 @@ pages_build_output_dir = "public"
 # D1 绑定：创建数据库后把 database_id 填上
 [[d1_databases]]
 binding = "DB"
-database_name = "chicken-dinner-scheduler"
-database_id = "cb0659e7-8498-4765-a8a6-75ea91f390b6"
+database_name = "booking-db"
+database_id = "16cdfd57-4f33-47cb-bc0f-8e8bb72474d8"
 
