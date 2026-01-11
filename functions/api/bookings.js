@@ -49,15 +49,7 @@ export async function onRequest(context) {
             headers: corsHeaders,
           });
         }
-
-        // 获取统计信息
-        if (url.pathname.endsWith("/stats")) {
-          const stats = await getBookingStats(db);
-          return new Response(JSON.stringify(stats), {
-            headers: corsHeaders,
-          });
-        }
-
+        
         break;
 
       case "POST":
