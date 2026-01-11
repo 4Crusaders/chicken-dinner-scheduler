@@ -26,7 +26,7 @@
         min-height: 100vh;
         padding: 15px;
         color: #333;
-        font-size: 14px; /* 基础字体调小 */
+        font-size: 14px;
       }
 
       .container {
@@ -48,12 +48,12 @@
       h1 {
         color: #2c3e50;
         margin-bottom: 8px;
-        font-size: 1.6rem; /* 调小标题 */
+        font-size: 1.6rem;
       }
 
       .subtitle {
         color: #7f8c8d;
-        font-size: 0.9rem; /* 调小副标题 */
+        font-size: 0.9rem;
         line-height: 1.4;
       }
 
@@ -88,7 +88,7 @@
       }
 
       .section-title {
-        font-size: 1.3rem; /* 调小章节标题 */
+        font-size: 1.3rem;
         color: #2c3e50;
         margin-bottom: 15px;
         padding-bottom: 10px;
@@ -416,6 +416,14 @@
         max-width: 90%;
       }
 
+      .notification.error {
+        background: #e74c3c;
+      }
+
+      .notification.warning {
+        background: #f39c12;
+      }
+
       @keyframes slideIn {
         from {
           transform: translateX(100%);
@@ -424,6 +432,26 @@
         to {
           transform: translateX(0);
           opacity: 1;
+        }
+      }
+
+      /* 加载状态 */
+      .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
         }
       }
 
@@ -512,7 +540,7 @@
       <header>
         <h1><i class="fas fa-calendar-alt"></i> 场地预定系统</h1>
         <p class="subtitle">
-          填写预定信息并提交，查看公开预定看板（数据存储在浏览器本地）
+          填写预定信息并提交，查看公开预定看板（数据存储在云端数据库）
         </p>
       </header>
 
@@ -552,7 +580,7 @@
                 </div>
               </div>
 
-              <button type="submit" class="btn-submit">
+              <button type="submit" class="btn-submit" id="submitBtn">
                 <i class="fas fa-paper-plane"></i> 提交预定
               </button>
             </form>
@@ -594,8 +622,8 @@
       </div>
 
       <footer>
-        <p>© 2023 场地预定系统 | 纯前端应用，数据存储在浏览器本地</p>
-        <p>刷新页面或重新打开浏览器，数据依然存在</p>
+        <p>© 2023 场地预定系统 | 云端数据库版本，数据永久保存</p>
+        <p>数据存储在Cloudflare D1数据库中</p>
       </footer>
 
       <!-- 通知 -->
@@ -603,7 +631,10 @@
     </div>
 
     <script>
-      // 应用状态和数据
+      // API配置
+      const API_BASE_URL = "/api"; // Cloudflare Pages Functions路径
+
+      // 应用状态
       const appState = {
         bookings: [],
         selectedSession: "morning",
@@ -634,10 +665,16 @@
           { id: "afternoon", name: "下午场" },
           { id: "evening", name: "夜场" },
         ],
+        stats: {
+          total: 0,
+          morning: 0,
+          afternoon: 0,
+          evening: 0,
+        },
       };
 
-      // DOM元素引用
-      const domElements = {
+      // DOM元素
+      const elements = {
         bookingForm: document.getElementById("bookingForm"),
         sessionOptions: document.getElementById("sessionOptions"),
         stats: document.getElementById("stats"),
@@ -646,22 +683,84 @@
         bookingsList: document.getElementById("bookingsList"),
         emptyBoard: document.getElementById("emptyBoard"),
         notification: document.getElementById("notification"),
+        submitBtn: document.getElementById("submitBtn"),
+        nameInput: document.getElementById("name"),
+      };
+
+      // API服务
+      const api = {
+        // 通用请求方法
+        async request(endpoint, options = {}) {
+          const url = `${API_BASE_URL}${endpoint}`;
+          const defaultOptions = {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          };
+
+          try {
+            const response = await fetch(url, {
+              ...defaultOptions,
+              ...options,
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `HTTP ${response.status}: ${response.statusText}`
+              );
+            }
+
+            return await response.json();
+          } catch (error) {
+            console.error("API请求失败:", error);
+            throw error;
+          }
+        },
+
+        // 获取预定列表
+        async getBookings(filter = "all") {
+          const endpoint =
+            filter === "all" ? "/bookings" : `/bookings?filter=${filter}`;
+          return await this.request(endpoint);
+        },
+
+        // 获取统计信息
+        async getStats() {
+          return await this.request("/stats");
+        },
+
+        // 添加预定
+        async addBooking(booking) {
+          return await this.request("/bookings", {
+            method: "POST",
+            body: JSON.stringify(booking),
+          });
+        },
+
+        // 清空所有预定
+        async clearAllBookings() {
+          return await this.request("/bookings", {
+            method: "DELETE",
+          });
+        },
       };
 
       // 工具函数
       const utils = {
         // 显示通知
-        showNotification: function (message, duration = 3000) {
-          domElements.notification.textContent = message;
-          domElements.notification.style.display = "block";
+        showNotification(message, type = "success", duration = 3000) {
+          const notification = elements.notification;
+          notification.textContent = message;
+          notification.className = `notification ${type}`;
+          notification.style.display = "block";
 
           setTimeout(() => {
-            domElements.notification.style.display = "none";
+            notification.style.display = "none";
           }, duration);
         },
 
         // 格式化日期
-        formatDate: function (dateString) {
+        formatDate(dateString) {
           const date = new Date(dateString);
           return date.toLocaleString("zh-CN", {
             year: "numeric",
@@ -669,11 +768,23 @@
             day: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
+            second: "2-digit",
           });
         },
 
+        // 设置按钮加载状态
+        setButtonLoading(button, isLoading) {
+          if (isLoading) {
+            button.disabled = true;
+            button.innerHTML = '<span class="loading"></span> 处理中...';
+          } else {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-paper-plane"></i> 提交预定';
+          }
+        },
+
         // 获取场次信息
-        getSessionInfo: function (sessionId) {
+        getSessionInfo(sessionId) {
           return (
             appState.sessions.find((s) => s.id === sessionId) || {
               name: "未知场次",
@@ -683,42 +794,15 @@
         },
 
         // 获取场次CSS类
-        getSessionClass: function (sessionId) {
+        getSessionClass(sessionId) {
           return `${sessionId}-session`;
-        },
-      };
-
-      // 本地存储函数
-      const storage = {
-        // 保存预定数据
-        saveBookings: function () {
-          try {
-            localStorage.setItem(
-              "bookingSystemData",
-              JSON.stringify(appState.bookings)
-            );
-          } catch (error) {
-            console.error("保存数据失败:", error);
-          }
-        },
-
-        // 加载预定数据
-        loadBookings: function () {
-          try {
-            const savedData = localStorage.getItem("bookingSystemData");
-            if (savedData) {
-              appState.bookings = JSON.parse(savedData);
-            }
-          } catch (error) {
-            console.error("加载数据失败:", error);
-          }
         },
       };
 
       // 渲染函数
       const render = {
         // 渲染场次选择器
-        renderSessionOptions: function () {
+        renderSessionOptions() {
           let html = "";
           appState.sessions.forEach((session) => {
             const isSelected = appState.selectedSession === session.id;
@@ -734,7 +818,7 @@
                     `;
           });
 
-          domElements.sessionOptions.innerHTML = html;
+          elements.sessionOptions.innerHTML = html;
 
           // 添加点击事件
           document.querySelectorAll(".session-option").forEach((option) => {
@@ -746,40 +830,31 @@
         },
 
         // 渲染统计数据
-        renderStats: function () {
-          const totalBookings = appState.bookings.length;
-          const morningBookings = appState.bookings.filter(
-            (b) => b.session === "morning"
-          ).length;
-          const afternoonBookings = appState.bookings.filter(
-            (b) => b.session === "afternoon"
-          ).length;
-          const eveningBookings = appState.bookings.filter(
-            (b) => b.session === "evening"
-          ).length;
+        renderStats() {
+          const { stats } = appState;
 
-          domElements.stats.innerHTML = `
+          elements.stats.innerHTML = `
                     <div class="stat-item">
-                        <div class="stat-value">${totalBookings}</div>
+                        <div class="stat-value">${stats.total}</div>
                         <div class="stat-label">总预定数</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">${morningBookings}</div>
+                        <div class="stat-value">${stats.morning}</div>
                         <div class="stat-label">早场预定</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">${afternoonBookings}</div>
+                        <div class="stat-value">${stats.afternoon}</div>
                         <div class="stat-label">下午场预定</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">${eveningBookings}</div>
+                        <div class="stat-value">${stats.evening}</div>
                         <div class="stat-label">夜场预定</div>
                     </div>
                 `;
         },
 
         // 渲染筛选按钮
-        renderFilterButtons: function () {
+        renderFilterButtons() {
           let html = "";
           appState.filters.forEach((filter) => {
             const isActive = appState.filter === filter.id;
@@ -791,77 +866,66 @@
                     `;
           });
 
-          domElements.filterButtons.innerHTML = html;
+          elements.filterButtons.innerHTML = html;
 
           // 添加点击事件
           document.querySelectorAll(".filter-btn").forEach((btn) => {
-            btn.addEventListener("click", () => {
+            btn.addEventListener("click", async () => {
               appState.filter = btn.dataset.filterId;
               this.renderFilterButtons();
-              this.renderBookingsList();
+              await loadBookings();
             });
           });
         },
 
         // 渲染预定列表
-        renderBookingsList: function () {
-          let filteredBookings = [];
-
-          // 根据筛选条件过滤预定
-          if (appState.filter === "all") {
-            filteredBookings = [...appState.bookings].reverse();
-          } else {
-            filteredBookings = appState.bookings
-              .filter((b) => b.session === appState.filter)
-              .reverse();
+        renderBookingsList() {
+          if (appState.bookings.length === 0) {
+            elements.emptyBoard.style.display = "block";
+            elements.bookingsList.innerHTML = "";
+            return;
           }
 
-          // 显示/隐藏空状态
-          if (filteredBookings.length === 0) {
-            domElements.emptyBoard.style.display = "block";
-            domElements.bookingsList.innerHTML = "";
-          } else {
-            domElements.emptyBoard.style.display = "none";
+          elements.emptyBoard.style.display = "none";
 
-            let html = "";
-            filteredBookings.forEach((booking) => {
-              const sessionInfo = utils.getSessionInfo(booking.session);
-              const sessionClass = utils.getSessionClass(booking.session);
+          let html = "";
+          appState.bookings.forEach((booking) => {
+            const sessionInfo = utils.getSessionInfo(booking.session);
+            const sessionClass = utils.getSessionClass(booking.session);
 
-              html += `
-                            <div class="booking-item">
-                                <div class="booking-header">
-                                    <div class="booking-name">
-                                        <i class="fas fa-user-circle"></i> ${booking.name}
-                                    </div>
-                                    <div class="booking-session ${sessionClass}">
-                                        <i class="${sessionInfo.icon}"></i> ${sessionInfo.name}
-                                    </div>
+            html += `
+                        <div class="booking-item">
+                            <div class="booking-header">
+                                <div class="booking-name">
+                                    <i class="fas fa-user-circle"></i> ${booking.name}
                                 </div>
-                                
-                                <div class="booking-time">
-                                    <i class="far fa-clock"></i> ${utils.formatDate(booking.date)}
+                                <div class="booking-session ${sessionClass}">
+                                    <i class="${sessionInfo.icon}"></i> ${sessionInfo.name}
                                 </div>
-                                
-                                ${
-                                  booking.remark
-                                    ? `
-                                <div class="booking-remark">
-                                    <i class="fas fa-quote-left"></i> ${booking.remark}
-                                </div>
-                                `
-                                    : ""
-                                }
                             </div>
-                        `;
-            });
+                            
+                            <div class="booking-time">
+                                <i class="far fa-clock"></i> ${utils.formatDate(booking.created_at)}
+                            </div>
+                            
+                            ${
+                              booking.remark
+                                ? `
+                            <div class="booking-remark">
+                                <i class="fas fa-quote-left"></i> ${booking.remark}
+                            </div>
+                            `
+                                : ""
+                            }
+                        </div>
+                    `;
+          });
 
-            domElements.bookingsList.innerHTML = html;
-          }
+          elements.bookingsList.innerHTML = html;
         },
 
         // 渲染所有组件
-        renderAll: function () {
+        renderAll() {
           this.renderSessionOptions();
           this.renderStats();
           this.renderFilterButtons();
@@ -869,104 +933,165 @@
         },
       };
 
+      // 数据加载函数
+      async function loadBookings() {
+        try {
+          const [bookings, stats] = await Promise.all([
+            api.getBookings(appState.filter),
+            api.getStats(),
+          ]);
+
+          appState.bookings = bookings;
+          appState.stats = stats;
+          render.renderAll();
+        } catch (error) {
+          console.error("加载数据失败:", error);
+          utils.showNotification("加载数据失败，请刷新页面重试", "error");
+        }
+      }
+
       // 事件处理函数
       const handlers = {
         // 处理表单提交
-        handleFormSubmit: function (e) {
+        async handleFormSubmit(e) {
           e.preventDefault();
 
-          const nameInput = document.getElementById("name");
+          const nameInput = elements.nameInput;
           const remarkInput = document.getElementById("remark");
 
           // 验证姓名
           if (!nameInput.value.trim()) {
-            utils.showNotification("请填写预定人姓名");
+            utils.showNotification("请填写预定人姓名", "warning");
             nameInput.focus();
             return;
           }
 
-          // 创建新预定
-          const newBooking = {
-            id: Date.now(),
+          // 创建预定对象
+          const booking = {
             name: nameInput.value.trim(),
             remark: remarkInput.value.trim(),
             session: appState.selectedSession,
-            date: new Date().toISOString(),
           };
 
-          // 添加到预定列表
-          appState.bookings.push(newBooking);
+          try {
+            // 设置按钮加载状态
+            utils.setButtonLoading(elements.submitBtn, true);
 
-          // 保存到本地存储
-          storage.saveBookings();
+            // 提交预定
+            const result = await api.addBooking(booking);
 
-          // 重新渲染
-          render.renderAll();
+            if (result.success) {
+              // 更新应用状态
+              appState.bookings = result.bookings || [];
+              appState.stats = result.stats || appState.stats;
 
-          // 显示成功通知
-          utils.showNotification("预定成功！已添加到看板");
+              // 重新渲染
+              render.renderAll();
 
-          // 重置表单（保留选中的场次）
-          nameInput.value = "";
-          remarkInput.value = "";
-          nameInput.focus();
+              // 显示成功通知
+              utils.showNotification("预定成功！已添加到看板");
+
+              // 重置表单
+              nameInput.value = "";
+              remarkInput.value = "";
+              nameInput.focus();
+            } else {
+              utils.showNotification(result.error || "预定失败", "error");
+            }
+          } catch (error) {
+            console.error("提交预定失败:", error);
+            utils.showNotification("提交预定失败，请稍后重试", "error");
+          } finally {
+            // 恢复按钮状态
+            utils.setButtonLoading(elements.submitBtn, false);
+          }
         },
 
         // 处理清空所有预定
-        handleClearAll: function () {
+        async handleClearAll() {
           if (appState.bookings.length === 0) {
-            utils.showNotification("没有预定记录可清空");
+            utils.showNotification("没有预定记录可清空", "warning");
             return;
           }
 
-          if (confirm("确定要清空所有预定记录吗？此操作不可恢复。")) {
-            appState.bookings = [];
-            storage.saveBookings();
-            render.renderAll();
-            utils.showNotification("已清空所有预定记录");
+          if (!confirm("确定要清空所有预定记录吗？此操作不可恢复。")) {
+            return;
+          }
+
+          try {
+            const result = await api.clearAllBookings();
+
+            if (result.success) {
+              // 更新应用状态
+              appState.bookings = [];
+              appState.stats = result.stats || appState.stats;
+
+              // 重新渲染
+              render.renderAll();
+
+              // 显示成功通知
+              utils.showNotification(result.message || "已清空所有预定记录");
+            } else {
+              utils.showNotification(result.error || "清空失败", "error");
+            }
+          } catch (error) {
+            console.error("清空预定失败:", error);
+            utils.showNotification("清空预定失败，请稍后重试", "error");
           }
         },
 
         // 初始化事件监听
-        initEventListeners: function () {
+        initEventListeners() {
           // 表单提交事件
-          domElements.bookingForm.addEventListener(
-            "submit",
-            this.handleFormSubmit
-          );
+          elements.bookingForm.addEventListener("submit", (e) => {
+            this.handleFormSubmit(e);
+          });
 
           // 清空按钮事件
-          domElements.clearAllBtn.addEventListener(
-            "click",
-            this.handleClearAll
-          );
+          elements.clearAllBtn.addEventListener("click", () => {
+            this.handleClearAll();
+          });
 
           // 页面加载时焦点放在姓名输入框
-          document.getElementById("name").focus();
+          elements.nameInput.focus();
         },
       };
 
       // 初始化应用
-      function initApp() {
-        // 加载数据
-        storage.loadBookings();
+      async function initApp() {
+        try {
+          // 显示加载状态
+          utils.showNotification("正在加载数据...", "warning", 2000);
 
-        // 初始化事件监听
-        handlers.initEventListeners();
+          // 初始化事件监听
+          handlers.initEventListeners();
 
-        // 初始渲染
-        render.renderAll();
+          // 加载数据
+          await loadBookings();
+
+          // 初始渲染
+          render.renderAll();
+        } catch (error) {
+          console.error("应用初始化失败:", error);
+          utils.showNotification(
+            "应用初始化失败，请刷新页面重试",
+            "error",
+            5000
+          );
+        }
       }
 
       // 页面加载完成后初始化应用
       document.addEventListener("DOMContentLoaded", initApp);
 
-      // 页面可见性变化时重新渲染（防止移动端切换标签页后数据不同步）
-      document.addEventListener("visibilitychange", function () {
-        if (!document.hidden) {
-          storage.loadBookings();
-          render.renderAll();
-        }
+      // 处理离线/在线状态
+      window.addEventListener("online", () => {
+        utils.showNotification("网络已恢复，正在同步数据...", "warning", 2000);
+        loadBookings();
+      });
+
+      window.addEventListener("offline", () => {
+        utils.showNotification("网络已断开，部分功能可能受限", "error", 3000);
       });
     </script>
   </body>

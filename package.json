@@ -1,5 +1,6 @@
 {
   "name": "chicken-dinner-scheduler",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "db:local": "wrangler d1 migrations apply chicken-dinner-scheduler --local",
