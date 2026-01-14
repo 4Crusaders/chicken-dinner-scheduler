@@ -1,5 +1,5 @@
 name = "chicken-dinner-scheduler"
-compatibility_date = "2026-01-10"
+compatibility_date = "2026-01-07"
 
 # Cloudflare Pages：静态输出目录
 pages_build_output_dir = "public"
