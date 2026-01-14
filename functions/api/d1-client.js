@@ -76,19 +76,44 @@ export async function clearAllBookings(db) {
 
 // 初始化数据库
 export async function initDatabase(db) {
-  // 创建表（如果不存在）
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      remark TEXT,
-      session TEXT NOT NULL CHECK (session IN ('morning', 'afternoon', 'evening')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_bookings_session ON bookings(session);
-    CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
-  `);
+  // Avoid db.exec multi-statement quirks in local dev by running statements individually.
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS bookings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        remark TEXT,
+        session TEXT NOT NULL CHECK (session IN ('morning', 'afternoon', 'evening')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`
+    )
+    .run();
+
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_bookings_session ON bookings(session)`
+    )
+    .run();
+
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC)`
+    )
+    .run();
 
   return { success: true };
+}
+
+let initPromise;
+
+// Ensure DB schema exists; runs once per Worker instance.
+export async function ensureDatabase(db) {
+  if (!initPromise) {
+    initPromise = initDatabase(db).catch((error) => {
+      initPromise = undefined;
+      throw error;
+    });
+  }
+
+  return initPromise;
 }

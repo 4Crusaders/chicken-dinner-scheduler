@@ -1,4 +1,4 @@
-import { getBookingStats } from "./d1-client.js";
+import { ensureDatabase, getBookingStats } from "./d1-client.js";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -32,6 +32,7 @@ export async function onRequest(context) {
 
   try {
     const url = new URL(request.url);
+    await ensureDatabase(db);
 
     switch (request.method) {
       case "GET":

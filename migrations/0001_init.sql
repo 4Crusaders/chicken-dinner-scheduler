@@ -1,0 +1,20 @@
+-- Initial schema for D1
+CREATE TABLE IF NOT EXISTS bookings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  remark TEXT,
+  session TEXT NOT NULL CHECK (session IN ('morning', 'afternoon', 'evening')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookings_session ON bookings(session);
+CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
+
+-- Optional (not currently used by the API)
+CREATE TABLE IF NOT EXISTS booking_stats (
+  date DATE PRIMARY KEY,
+  morning_count INTEGER DEFAULT 0,
+  afternoon_count INTEGER DEFAULT 0,
+  evening_count INTEGER DEFAULT 0,
+  total_count INTEGER DEFAULT 0
+);

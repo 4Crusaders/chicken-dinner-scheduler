@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 
 -- 创建索引以提高查询性能
-CREATE INDEX idx_bookings_session ON bookings(session);
-CREATE INDEX idx_bookings_created_at ON bookings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_session ON bookings(session);
+CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
 
 -- 可选：创建统计表（如果需要实时统计）
 CREATE TABLE IF NOT EXISTS booking_stats (

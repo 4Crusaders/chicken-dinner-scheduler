@@ -3,7 +3,7 @@ import {
   getBookings,
   getBookingStats,
   clearAllBookings,
-  initDatabase,
+  ensureDatabase,
 } from "./d1-client.js";
 
 export async function onRequest(context) {
@@ -38,6 +38,7 @@ export async function onRequest(context) {
 
   try {
     const url = new URL(request.url);
+    await ensureDatabase(db);
 
     switch (request.method) {
       case "GET":
