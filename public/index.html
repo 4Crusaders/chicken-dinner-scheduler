@@ -424,6 +424,27 @@
         background: #f39c12;
       }
 
+      /* 登录提示样式 */
+      .login-hint {
+        padding: 12px 16px;
+        background: #fff3cd;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        text-align: center;
+        color: #856404;
+        font-weight: 500;
+      }
+
+      .login-hint a {
+        color: #3498db;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .login-hint a:hover {
+        text-decoration: underline;
+      }
+
       @keyframes slideIn {
         from {
           transform: translateX(100%);
@@ -553,14 +574,9 @@
             </h2>
 
             <form id="bookingForm">
-              <div class="form-group">
-                <label for="name"><i class="fas fa-user"></i> 预定人姓名</label>
-                <input
-                  type="text"
-                  id="name"
-                  placeholder="请输入您的姓名"
-                  required
-                />
+              <!-- 登录提示区域（未登录时显示） -->
+              <div class="login-hint" id="loginHint" style="display: none;">
+                <i class="fas fa-info-circle"></i> 请先<a href="#" id="loginLink">登录</a>或<a href="#" id="registerLink">注册</a>后再提交预定
               </div>
 
               <div class="form-group">
@@ -602,10 +618,6 @@
               <div class="filter-buttons" id="filterButtons">
                 <!-- 筛选按钮将通过JS动态生成 -->
               </div>
-
-              <button class="clear-btn" id="clearAllBtn">
-                <i class="fas fa-trash-alt"></i> 清空所有预定
-              </button>
             </div>
 
             <div class="bookings-list" id="bookingsList">
