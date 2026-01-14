@@ -104,6 +104,7 @@ const api = {
   // 通用请求方法
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    const { timeoutMs = 15000, ...fetchOptions } = options;
     const headers = {
       "Content-Type": "application/json",
     };
@@ -116,10 +117,17 @@ const api = {
       headers,
     };
 
+    const controller = new AbortController();
+    const signal = fetchOptions.signal || controller.signal;
+    const timeoutId = fetchOptions.signal
+      ? null
+      : setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(url, {
         ...defaultOptions,
-        ...options,
+        ...fetchOptions,
+        signal,
       });
 
       if (!response.ok) {
@@ -129,8 +137,15 @@ const api = {
 
       return await response.json();
     } catch (error) {
+      if (error.name === "AbortError") {
+        throw new Error("请求超时，请稍后重试");
+      }
       console.error("API请求失败:", error);
       throw error;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   },
 
@@ -165,7 +180,7 @@ const api = {
 
   // 获取当前登录用户信息
   async getCurrentUser() {
-    return await this.request("/auth");
+    return await this.request("/auth", { timeoutMs: 5000 });
   },
 
   // 获取颜色列表
@@ -1019,17 +1034,18 @@ async function initApp() {
     // 显示加载状态
     utils.showNotification("正在加载数据...", "warning", 2000);
 
-    // 检查登录状态
-    await authUtils.checkAuthStatus();
-
     // 初始化事件监听
     handlers.initEventListeners();
 
-    // 加载数据
-    await loadBookings();
-
     // 初始渲染
     render.renderAll();
+
+    // 并行加载登录态和数据，避免阻塞首屏
+    const authPromise = authUtils.checkAuthStatus().then(() => {
+      render.renderAll();
+    });
+    const bookingsPromise = loadBookings();
+    await Promise.allSettled([authPromise, bookingsPromise]);
   } catch (error) {
     console.error("应用初始化失败:", error);
     utils.showNotification("应用初始化失败，请刷新页面重试", "error", 5000);
