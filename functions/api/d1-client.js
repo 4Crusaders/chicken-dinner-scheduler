@@ -71,7 +71,7 @@ export async function validateSession(db, token) {
 export async function getBookingsWithUserInfo(db, filter = "all") {
   let query = `
     SELECT b.id, b.name, b.remark, b.session, b.user_id,
-           datetime(b.created_at, 'localtime') as created_at,
+           strftime('%Y-%m-%dT%H:%M:%SZ', b.created_at) as created_at,
            u.color, u.username
     FROM bookings b
     LEFT JOIN users u ON b.user_id = u.id
@@ -120,8 +120,8 @@ export async function addBooking(db, booking) {
 
 // 获取所有预定（支持筛选）
 export async function getBookings(db, filter = "all") {
-  let query = `SELECT id, name, remark, session, 
-               datetime(created_at, 'localtime') as created_at 
+  let query = `SELECT id, name, remark, session,
+               strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at
                FROM bookings`;
 
   let params = [];

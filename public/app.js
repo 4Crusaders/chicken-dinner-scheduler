@@ -243,7 +243,20 @@ const utils = {
 
   // 格式化日期
   formatDate(dateString) {
-    const date = new Date(dateString);
+    if (!dateString) {
+      return "";
+    }
+
+    let normalized = dateString;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateString)) {
+      normalized = dateString.replace(" ", "T") + "Z";
+    }
+
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) {
+      return dateString;
+    }
+
     return date.toLocaleString("zh-CN", {
       year: "numeric",
       month: "2-digit",
