@@ -516,8 +516,9 @@
         }
 
         .timeline-hour {
-          min-width: 40px;
+          width: 30px;
           font-size: 0.65rem;
+          padding: 6px 1px;
         }
 
         .gantt-bar {
@@ -601,22 +602,30 @@
         border-bottom: 2px solid #eee;
         margin-bottom: 16px;
         background: white;
+        flex-shrink: 0;
       }
 
       .timeline-hour {
-        min-width: 50px;
-        padding: 8px 4px;
-        font-size: 0.75rem;
+        width: 35px;
+        flex-shrink: 0;
+        padding: 8px 2px;
+        font-size: 0.7rem;
         color: #7f8c8d;
         border-left: 1px solid #eee;
+        border-right: 1px solid #eee;
         text-align: left;
-        flex-shrink: 0;
+        box-sizing: border-box;
+      }
+
+      .timeline-hour:last-child {
+        border-right: 1px solid #eee;
       }
 
       .gantt-body {
         position: relative;
         min-height: 200px;
         padding-left: 0;
+        flex-shrink: 0;
       }
 
       .gantt-bar {

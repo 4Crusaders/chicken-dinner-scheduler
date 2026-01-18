@@ -352,7 +352,7 @@ const timeUtils = {
 // 甘特图渲染器
 const ganttChart = {
   config: {
-    hourWidth: 50,
+    hourWidth: 35,
     startHour: 8,
     endHour: 24,
     rowHeight: 45,
@@ -458,17 +458,20 @@ const ganttChart = {
     // 按第一个时间段开始时间排序行
     userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
 
+    // 计算甘特图总宽度
+    const totalWidth = (this.config.endHour - this.config.startHour) * this.config.hourWidth;
+
     let html = '<div class="gantt-chart"><div class="gantt-scroll-container">';
 
     // 渲染时间轴
-    html += '<div class="timeline-header">';
+    html += `<div class="timeline-header" style="width: ${totalWidth}px;">`;
     for (let h = this.config.startHour; h < this.config.endHour; h++) {
       html += `<div class="timeline-hour">${String(h).padStart(2, '0')}:00</div>`;
     }
     html += '</div>';
 
     // 渲染用户行
-    html += '<div class="gantt-body">';
+    html += `<div class="gantt-body" style="width: ${totalWidth}px;">`;
     userRows.forEach((row, rowIndex) => {
       const rowTop = rowIndex * this.config.rowHeight;
 
