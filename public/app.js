@@ -290,10 +290,10 @@ const utils = {
 
 // 时间工具函数
 const timeUtils = {
-  // 生成时间选项（每30分钟）
+  // 生成时间选项（每30分钟，从8点开始）
   generateTimeOptions() {
     const options = [];
-    for (let h = 0; h < 24; h++) {
+    for (let h = 8; h < 24; h++) {
       for (let m = 0; m < 60; m += 30) {
         const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         options.push({ value: time, label: time });
@@ -320,13 +320,40 @@ const timeUtils = {
     const [h2, m2] = end.split(':').map(Number);
     return (h2 * 60 + m2) - (h1 * 60 + m1);
   },
+
+  // 检测时间冲突（返回有冲突的预定列表）
+  detectConflicts(startTime, endTime, existingBookings, currentUserId) {
+    const [newStartH, newStartM] = startTime.split(':').map(Number);
+    const [newEndH, newEndM] = endTime.split(':').map(Number);
+    const newStartMinutes = newStartH * 60 + newStartM;
+    const newEndMinutes = newEndH * 60 + newEndM;
+
+    // 只检测当前用户自己的预定冲突
+    const userBookings = existingBookings.filter(b => b.user_id === currentUserId);
+    const conflicts = [];
+
+    userBookings.forEach(booking => {
+      const [existStartH, existStartM] = booking.start_time.split(':').map(Number);
+      const [existEndH, existEndM] = booking.end_time.split(':').map(Number);
+      const existStartMinutes = existStartH * 60 + existStartM;
+      const existEndMinutes = existEndH * 60 + existEndM;
+
+      // 检测时间重叠：两个时间段有交集即冲突
+      // 新时间段开始 < 旧时间段结束 AND 新时间段结束 > 旧时间段开始
+      if (newStartMinutes < existEndMinutes && newEndMinutes > existStartMinutes) {
+        conflicts.push(booking);
+      }
+    });
+
+    return conflicts;
+  },
 };
 
 // 甘特图渲染器
 const ganttChart = {
   config: {
     hourWidth: 50,
-    startHour: 6,
+    startHour: 8,
     endHour: 24,
     rowHeight: 45,
   },
@@ -431,7 +458,7 @@ const ganttChart = {
     // 按第一个时间段开始时间排序行
     userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
 
-    let html = '<div class="gantt-chart">';
+    let html = '<div class="gantt-chart"><div class="gantt-scroll-container">';
 
     // 渲染时间轴
     html += '<div class="timeline-header">';
@@ -445,22 +472,6 @@ const ganttChart = {
     userRows.forEach((row, rowIndex) => {
       const rowTop = rowIndex * this.config.rowHeight;
 
-      // 用户名标签（行首）
-      html += `
-        <div class="gantt-row-label" style="
-          position: absolute;
-          left: 0;
-          top: ${rowTop + 10}px;
-          width: 80px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: ${row.color};
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        ">${row.username}</div>
-      `;
-
       // 该用户的所有时间段条
       row.timeSlots.forEach(slot => {
         const { left, width } = this.calculateLayout(slot);
@@ -473,13 +484,14 @@ const ganttChart = {
             background: ${row.color};
             opacity: 0.9;
           " data-id="${slot.id}">
+            <span class="gantt-bar-username">${row.username}</span>
             <span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>
             ${slot.remark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
           </div>
         `;
       });
     });
-    html += '</div></div>';
+    html += '</div></div></div>';
 
     return html;
   },
@@ -1061,7 +1073,32 @@ const handlers = {
       // 设置按钮加载状态
       utils.setButtonLoading(elements.submitBtn, true);
 
-      // 提交预定
+      // 检测时间冲突
+      const conflicts = timeUtils.detectConflicts(
+        startTime,
+        endTime,
+        appState.timeSlotBookings,
+        appState.currentUser?.id
+      );
+
+      if (conflicts.length > 0) {
+        // 有冲突，询问用户是否覆盖
+        const conflictTimes = conflicts.map(c => `${c.start_time}-${c.end_time}`).join('、');
+        const confirmed = confirm(
+          `检测到时间冲突：\n${conflictTimes}\n\n是否覆盖原有预定？\n\n• 点击"确定"：删除原有预定，创建新预定\n• 点击"取消"：取消本次操作`
+        );
+
+        if (confirmed) {
+          // 用户选择覆盖，先删除冲突的预定
+          await this.handleOverwriteConflicts(conflicts, { startTime, endTime, remark });
+        } else {
+          // 用户取消
+          utils.showNotification("已取消预定", "warning");
+        }
+        return;
+      }
+
+      // 无冲突，直接提交预定
       const result = await api.addTimeSlotBooking({ startTime, endTime, remark });
 
       if (result.success) {
@@ -1089,6 +1126,42 @@ const handlers = {
     } finally {
       // 恢复按钮状态
       utils.setButtonLoading(elements.submitBtn, false);
+    }
+  },
+
+  // 处理覆盖冲突预定
+  async handleOverwriteConflicts(conflicts, newBooking) {
+    try {
+      // 删除所有冲突的预定
+      for (const conflict of conflicts) {
+        await api.deleteTimeSlotBooking(conflict.id);
+      }
+
+      // 创建新预定
+      const result = await api.addTimeSlotBooking(newBooking);
+
+      if (result.success) {
+        appState.timeSlotBookings = result.bookings || [];
+        appState.stats = result.stats || appState.stats;
+
+        // 重新渲染
+        render.renderAll();
+
+        // 显示成功通知
+        utils.showNotification(`已覆盖 ${conflicts.length} 条预定，新预定已创建`);
+
+        // 重置表单
+        document.getElementById('remark').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        const validationEl = document.getElementById('timeValidation');
+        if (validationEl) validationEl.textContent = '';
+      } else {
+        utils.showNotification(result.error || "创建新预定失败", "error");
+      }
+    } catch (error) {
+      console.error("覆盖预定失败:", error);
+      utils.showNotification(error.message || "覆盖预定失败，请稍后重试", "error");
     }
   },
 

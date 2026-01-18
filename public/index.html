@@ -526,13 +526,8 @@
           height: 35px;
         }
 
-        .gantt-body {
-          padding-left: 75px;
-        }
-
-        .gantt-row-label {
-          font-size: 0.7rem;
-          max-width: 70px;
+        .gantt-bar-username {
+          margin-right: 4px;
         }
       }
 
@@ -551,13 +546,10 @@
           display: none;
         }
 
-        .gantt-body {
-          padding-left: 65px;
-        }
-
-        .gantt-row-label {
-          font-size: 0.65rem;
-          max-width: 60px;
+        .gantt-bar-username {
+          max-width: 50px;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
 
@@ -596,18 +588,19 @@
 
       /* 甘特图样式 */
       .gantt-chart {
-        overflow-x: auto;
         padding: 16px 0;
+      }
+
+      .gantt-scroll-container {
+        overflow-x: auto;
+        overflow-y: hidden;
       }
 
       .timeline-header {
         display: flex;
         border-bottom: 2px solid #eee;
         margin-bottom: 16px;
-        position: sticky;
-        left: 0;
         background: white;
-        z-index: 10;
       }
 
       .timeline-hour {
@@ -617,12 +610,13 @@
         color: #7f8c8d;
         border-left: 1px solid #eee;
         text-align: left;
+        flex-shrink: 0;
       }
 
       .gantt-body {
         position: relative;
         min-height: 200px;
-        padding-left: 85px; /* 为用户名标签留出空间 */
+        padding-left: 0;
       }
 
       .gantt-bar {
@@ -650,6 +644,12 @@
         border: 2px solid #2ecc71;
       }
 
+      .gantt-bar-username {
+        font-weight: 700;
+        margin-right: 6px;
+        flex-shrink: 0;
+      }
+
       .gantt-bar-text {
         white-space: nowrap;
         overflow: hidden;
@@ -663,16 +663,7 @@
         font-weight: 400;
       }
 
-      /* 用户行标签 */
-      .gantt-row-label {
-        position: absolute;
-        left: 5px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+      /* 用户行标签已移除 */
 
       /* 重置按钮样式已移除 */
     </style>
