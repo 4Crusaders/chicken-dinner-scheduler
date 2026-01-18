@@ -177,6 +177,69 @@ export async function clearAllBookings(db) {
   return result;
 }
 
+// ========== 时间段预定相关函数 ==========
+
+// 添加时间段预定
+export async function addTimeSlotBooking(db, { userId, remark, startTime, endTime, bookingDate }) {
+  const result = await db
+    .prepare(`INSERT INTO time_slot_bookings (user_id, remark, start_time, end_time, booking_date) VALUES (?, ?, ?, ?, ?)`)
+    .bind(userId, remark, startTime, endTime, bookingDate)
+    .run();
+  return result;
+}
+
+// 获取时间段预定列表
+export async function getTimeSlotBookings(db, bookingDate = null) {
+  let query = `
+    SELECT b.id, b.remark, b.start_time, b.end_time, b.booking_date,
+           strftime('%Y-%m-%dT%H:%M:%SZ', b.created_at) as created_at,
+           b.user_id, u.username, u.color
+    FROM time_slot_bookings b
+    LEFT JOIN users u ON b.user_id = u.id
+  `;
+
+  if (bookingDate) {
+    query += ` WHERE b.booking_date = ?`;
+  }
+
+  query += ` ORDER BY b.start_time ASC`;
+
+  const { results } = await db.prepare(query).bind(bookingDate || []).all();
+  return results || [];
+}
+
+// 删除时间段预定
+export async function deleteTimeSlotBooking(db, bookingId, userId) {
+  const result = await db
+    .prepare(`DELETE FROM time_slot_bookings WHERE id = ? AND user_id = ?`)
+    .bind(bookingId, userId)
+    .run();
+  return result;
+}
+
+// 获取时间段统计
+export async function getTimeSlotStats(db, bookingDate = null) {
+  let query = `SELECT COUNT(*) as total FROM time_slot_bookings`;
+  if (bookingDate) {
+    query += ` WHERE booking_date = ?`;
+  }
+  const { results } = await db.prepare(query).bind(bookingDate || []).all();
+  return { total: results?.[0]?.total || 0 };
+}
+
+// 从请求中获取当前用户（通过Cookie）
+export async function getSessionUser(db, request) {
+  const cookieHeader = request.headers.get("Cookie");
+  if (!cookieHeader) return null;
+
+  const tokenMatch = cookieHeader.match(/auth_token=([^;]+)/);
+  if (!tokenMatch) return null;
+
+  const token = tokenMatch[1];
+  const session = await validateSession(db, token);
+  return session;
+}
+
 // 初始化数据库
 export async function initDatabase(db) {
   // Users表
@@ -257,6 +320,31 @@ export async function initDatabase(db) {
 
   await db
     .prepare(`CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id)`)
+    .run();
+
+  // Time Slot Bookings表（时间段预定）
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS time_slot_bookings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        remark TEXT,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        booking_date TEXT NOT NULL DEFAULT (date('now')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CHECK (end_time > start_time)
+      )`
+    )
+    .run();
+
+  await db
+    .prepare(`CREATE INDEX IF NOT EXISTS idx_time_slot_user_date ON time_slot_bookings(user_id, booking_date)`)
+    .run();
+
+  await db
+    .prepare(`CREATE INDEX IF NOT EXISTS idx_time_slot_date_time ON time_slot_bookings(booking_date, start_time)`)
     .run();
 
   return { success: true };

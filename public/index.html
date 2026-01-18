@@ -499,10 +499,6 @@
           font-size: 1.2rem;
         }
 
-        .session-options {
-          grid-template-columns: 1fr;
-        }
-
         .stats {
           gap: 8px;
         }
@@ -511,49 +507,174 @@
           font-size: 1.3rem;
         }
 
-        .booking-name {
-          font-size: 1rem;
+        .time-picker-container {
+          flex-direction: column;
         }
 
-        .booking-session {
-          font-size: 0.8rem;
-          padding: 3px 10px;
+        .time-select {
+          width: 100%;
+        }
+
+        .timeline-hour {
+          min-width: 40px;
+          font-size: 0.65rem;
+        }
+
+        .gantt-bar {
+          font-size: 0.75rem;
+          padding: 0 8px;
+          height: 35px;
+        }
+
+        .gantt-body {
+          padding-left: 75px;
+        }
+
+        .gantt-row-label {
+          font-size: 0.7rem;
+          max-width: 70px;
         }
       }
 
       /* 超小屏幕优化 */
       @media (max-width: 480px) {
-        .board-controls {
-          flex-direction: column;
-          align-items: flex-start;
+        .gantt-chart {
+          font-size: 0.7rem;
         }
 
-        .filter-buttons {
-          width: 100%;
-          justify-content: space-between;
+        .gantt-bar {
+          height: 30px;
+          padding: 0 6px;
         }
 
-        .filter-btn {
-          flex: 1;
-          text-align: center;
-          font-size: 0.85rem;
-          padding: 5px 8px;
+        .gantt-bar-remark {
+          display: none;
         }
 
-        .clear-btn {
-          align-self: flex-end;
-          margin-top: 8px;
+        .gantt-body {
+          padding-left: 65px;
         }
 
-        .booking-header {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .booking-session {
-          align-self: flex-start;
+        .gantt-row-label {
+          font-size: 0.65rem;
+          max-width: 60px;
         }
       }
+
+      /* 时间选择器样式 */
+      .time-picker-container {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .time-select {
+        flex: 1;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: white;
+        cursor: pointer;
+      }
+
+      .time-select:focus {
+        outline: none;
+        border-color: #3498db;
+      }
+
+      .time-separator {
+        font-weight: 600;
+        color: #7f8c8d;
+      }
+
+      .time-validation {
+        margin-top: 8px;
+        font-size: 0.85rem;
+        min-height: 20px;
+      }
+
+      /* 甘特图样式 */
+      .gantt-chart {
+        overflow-x: auto;
+        padding: 16px 0;
+      }
+
+      .timeline-header {
+        display: flex;
+        border-bottom: 2px solid #eee;
+        margin-bottom: 16px;
+        position: sticky;
+        left: 0;
+        background: white;
+        z-index: 10;
+      }
+
+      .timeline-hour {
+        min-width: 50px;
+        padding: 8px 4px;
+        font-size: 0.75rem;
+        color: #7f8c8d;
+        border-left: 1px solid #eee;
+        text-align: left;
+      }
+
+      .gantt-body {
+        position: relative;
+        min-height: 200px;
+        padding-left: 85px; /* 为用户名标签留出空间 */
+      }
+
+      .gantt-bar {
+        position: absolute;
+        height: 40px;
+        border-radius: 6px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.85rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+
+      .gantt-bar:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .gantt-bar.own-booking {
+        border: 2px solid #2ecc71;
+      }
+
+      .gantt-bar-text {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .gantt-bar-remark {
+        margin-left: 8px;
+        opacity: 0.8;
+        font-size: 0.75rem;
+        font-weight: 400;
+      }
+
+      /* 用户行标签 */
+      .gantt-row-label {
+        position: absolute;
+        left: 5px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* 重置按钮样式已移除 */
     </style>
   </head>
   <body>
@@ -589,12 +710,8 @@
                 ></textarea>
               </div>
 
-              <div class="form-group">
-                <label><i class="fas fa-clock"></i> 选择场次</label>
-                <div class="session-options" id="sessionOptions">
-                  <!-- 场次选项将通过JS动态生成 -->
-                </div>
-              </div>
+              <!-- 时间选择器容器，由JS动态生成 -->
+              <div id="timePickerContainer"></div>
 
               <button type="submit" class="btn-submit" id="submitBtn">
                 <i class="fas fa-paper-plane"></i> 提交预定
@@ -611,23 +728,17 @@
         <section class="board-section">
           <div class="card">
             <h2 class="section-title">
-              <i class="fas fa-chalkboard"></i> 预定看板
+              <i class="fas fa-calendar-alt"></i> 预定看板
             </h2>
 
-            <div class="board-controls">
-              <div class="filter-buttons" id="filterButtons">
-                <!-- 筛选按钮将通过JS动态生成 -->
-              </div>
+            <div class="board-content" id="boardContent">
+              <!-- 甘特图将通过JS动态生成 -->
             </div>
 
-            <div class="bookings-list" id="bookingsList">
-              <!-- 预定列表将通过JS动态生成 -->
-            </div>
-
-            <div class="empty-board" id="emptyBoard">
+            <div class="empty-board" id="emptyBoard" style="display: none;">
               <i class="far fa-calendar-times"></i>
               <h3>暂无预定信息</h3>
-              <p>您可以选择一个场次进行预定</p>
+              <p>选择时间段开始预定吧！</p>
             </div>
           </div>
         </section>

@@ -15,40 +15,10 @@ const COLORS = [
 
 // 应用状态
 const appState = {
-  bookings: [],
-  selectedSession: "morning",
-  filter: "all",
-  sessions: [
-    {
-      id: "morning",
-      name: "早场",
-      time: "08:00 - 12:00",
-      icon: "fas fa-sun",
-    },
-    {
-      id: "afternoon",
-      name: "下午场",
-      time: "13:00 - 17:00",
-      icon: "fas fa-cloud-sun",
-    },
-    {
-      id: "evening",
-      name: "夜场",
-      time: "18:00 - 22:00",
-      icon: "fas fa-moon",
-    },
-  ],
-  filters: [
-    { id: "all", name: "全部" },
-    { id: "morning", name: "早场" },
-    { id: "afternoon", name: "下午场" },
-    { id: "evening", name: "夜场" },
-  ],
+  timeSlotBookings: [],
+  selectedDate: new Date().toISOString().split('T')[0],
   stats: {
     total: 0,
-    morning: 0,
-    afternoon: 0,
-    evening: 0,
   },
   // 认证相关状态
   currentUser: null,
@@ -61,13 +31,13 @@ const appState = {
 // DOM元素
 const elements = {
   bookingForm: document.getElementById("bookingForm"),
-  sessionOptions: document.getElementById("sessionOptions"),
+  timePickerContainer: document.getElementById("timePickerContainer"),
   stats: document.getElementById("stats"),
-  filterButtons: document.getElementById("filterButtons"),
-  bookingsList: document.getElementById("bookingsList"),
+  boardContent: document.getElementById("boardContent"),
   emptyBoard: document.getElementById("emptyBoard"),
   notification: document.getElementById("notification"),
   submitBtn: document.getElementById("submitBtn"),
+  // resetBookingsBtn: document.getElementById("resetBookingsBtn"), // 已移除
   loginHint: document.getElementById("loginHint"),
   loginLink: document.getElementById("loginLink"),
   registerLink: document.getElementById("registerLink"),
@@ -210,6 +180,29 @@ const api = {
       method: "POST",
     });
   },
+
+  // ============= 时间段预定相关API =============
+
+  // 获取时间段预定列表
+  async getTimeSlotBookings(date = null) {
+    const query = date ? `?date=${date}` : '';
+    return await this.request(`/time-slots${query}`);
+  },
+
+  // 添加时间段预定
+  async addTimeSlotBooking({ startTime, endTime, remark }) {
+    return await this.request('/time-slots', {
+      method: 'POST',
+      body: JSON.stringify({ startTime, endTime, remark }),
+    });
+  },
+
+  // 删除时间段预定
+  async deleteTimeSlotBooking(id) {
+    return await this.request(`/time-slots/${id}`, { method: 'DELETE' });
+  },
+
+  // clearAllTimeSlotBookings 已移除
 };
 
 // 认证工具函数
@@ -293,20 +286,202 @@ const utils = {
       button.innerHTML = originalText || button.dataset.originalText || '<i class="fas fa-paper-plane"></i> 提交预定';
     }
   },
+};
 
-  // 获取场次信息
-  getSessionInfo(sessionId) {
-    return (
-      appState.sessions.find((s) => s.id === sessionId) || {
-        name: "未知场次",
-        icon: "fas fa-question",
+// 时间工具函数
+const timeUtils = {
+  // 生成时间选项（每30分钟）
+  generateTimeOptions() {
+    const options = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        options.push({ value: time, label: time });
       }
-    );
+    }
+    return options;
   },
 
-  // 获取场次CSS类
-  getSessionClass(sessionId) {
-    return `${sessionId}-session`;
+  // 验证时间格式
+  isValidTime(timeStr) {
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr);
+  },
+
+  // 验证时间范围
+  validateTimeRange(start, end) {
+    if (!start || !end) return { valid: false, error: "请选择完整的时间范围" };
+    if (end <= start) return { valid: false, error: "结束时间必须大于开始时间" };
+    return { valid: true };
+  },
+
+  // 计算时长（分钟）
+  calculateDuration(start, end) {
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    return (h2 * 60 + m2) - (h1 * 60 + m1);
+  },
+};
+
+// 甘特图渲染器
+const ganttChart = {
+  config: {
+    hourWidth: 50,
+    startHour: 6,
+    endHour: 24,
+    rowHeight: 45,
+  },
+
+  // 合并同一用户的重叠时间段
+  mergeOverlappingBookings(bookings) {
+    const userMap = new Map();
+
+    // 按用户分组
+    bookings.forEach(b => {
+      if (!userMap.has(b.user_id)) userMap.set(b.user_id, []);
+      userMap.get(b.user_id).push(b);
+    });
+
+    const merged = [];
+    userMap.forEach(userBookings => {
+      userBookings.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+      let current = { ...userBookings[0] };
+      for (let i = 1; i < userBookings.length; i++) {
+        const next = userBookings[i];
+        const [curEndH, curEndM] = current.end_time.split(':').map(Number);
+        const [nextStartH, nextStartM] = next.start_time.split(':').map(Number);
+
+        // 检测重叠（结束时间 >= 下一个开始时间）
+        if ((curEndH * 60 + curEndM) >= (nextStartH * 60 + nextStartM)) {
+          // 合并
+          const [nextEndH, nextEndM] = next.end_time.split(':').map(Number);
+          if ((nextEndH * 60 + nextEndM) > (curEndH * 60 + curEndM)) {
+            current.end_time = next.end_time;
+          }
+          current.remark = [current.remark, next.remark].filter(Boolean).join('; ');
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+    });
+
+    return merged.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  },
+
+  // 计算位置和宽度
+  calculateLayout(booking) {
+    const [startH, startM] = booking.start_time.split(':').map(Number);
+    const [endH, endM] = booking.end_time.split(':').map(Number);
+
+    const startMinutes = (startH - this.config.startHour) * 60 + startM;
+    const duration = (endH * 60 + endM) - (startH * 60 + startM);
+
+    const left = Math.max(0, (startMinutes / 60) * this.config.hourWidth);
+    const width = (duration / 60) * this.config.hourWidth;
+
+    return { left, width };
+  },
+
+  // 渲染甘特图
+  render(bookings) {
+    // 按用户分组并合并重叠时间段
+    const userMap = new Map();
+    bookings.forEach(b => {
+      if (!userMap.has(b.user_id)) userMap.set(b.user_id, []);
+      userMap.get(b.user_id).push(b);
+    });
+
+    // 为每个用户合并重叠时间段
+    const userRows = [];
+    userMap.forEach((userBookings, userId) => {
+      userBookings.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+      // 合并重叠时间段
+      const merged = [];
+      let current = { ...userBookings[0] };
+      for (let i = 1; i < userBookings.length; i++) {
+        const next = userBookings[i];
+        const [curEndH, curEndM] = current.end_time.split(':').map(Number);
+        const [nextStartH, nextStartM] = next.start_time.split(':').map(Number);
+
+        if ((curEndH * 60 + curEndM) >= (nextStartH * 60 + nextStartM)) {
+          const [nextEndH, nextEndM] = next.end_time.split(':').map(Number);
+          if ((nextEndH * 60 + nextEndM) > (curEndH * 60 + curEndM)) {
+            current.end_time = next.end_time;
+          }
+          current.remark = [current.remark, next.remark].filter(Boolean).join('; ');
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+
+      // 保存该用户的行数据
+      userRows.push({
+        userId,
+        username: userBookings[0].username || '未知用户',
+        color: userBookings[0].color || '#3498db',
+        timeSlots: merged,
+      });
+    });
+
+    // 按第一个时间段开始时间排序行
+    userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
+
+    let html = '<div class="gantt-chart">';
+
+    // 渲染时间轴
+    html += '<div class="timeline-header">';
+    for (let h = this.config.startHour; h < this.config.endHour; h++) {
+      html += `<div class="timeline-hour">${String(h).padStart(2, '0')}:00</div>`;
+    }
+    html += '</div>';
+
+    // 渲染用户行
+    html += '<div class="gantt-body">';
+    userRows.forEach((row, rowIndex) => {
+      const rowTop = rowIndex * this.config.rowHeight;
+
+      // 用户名标签（行首）
+      html += `
+        <div class="gantt-row-label" style="
+          position: absolute;
+          left: 0;
+          top: ${rowTop + 10}px;
+          width: 80px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: ${row.color};
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        ">${row.username}</div>
+      `;
+
+      // 该用户的所有时间段条
+      row.timeSlots.forEach(slot => {
+        const { left, width } = this.calculateLayout(slot);
+
+        html += `
+          <div class="gantt-bar" style="
+            left: ${left}px;
+            width: ${width}px;
+            top: ${rowTop}px;
+            background: ${row.color};
+            opacity: 0.9;
+          " data-id="${slot.id}">
+            <span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>
+            ${slot.remark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
+          </div>
+        `;
+      });
+    });
+    html += '</div></div>';
+
+    return html;
   },
 };
 
@@ -625,32 +800,30 @@ const render = {
     });
   },
 
-  // 渲染场次选择器
-  renderSessionOptions() {
-    let html = "";
-    appState.sessions.forEach((session) => {
-      const isSelected = appState.selectedSession === session.id;
-      html += `
-        <div class="session-option ${isSelected ? "selected" : ""}"
-             data-session-id="${session.id}">
-          <div class="session-icon">
-            <i class="${session.icon}"></i>
-          </div>
-          <div class="session-name">${session.name}</div>
-          <div class="session-time">${session.time}</div>
-        </div>
-      `;
-    });
+  // 渲染时间选择器
+  renderTimePicker() {
+    const options = timeUtils.generateTimeOptions();
+    let html = '<div class="form-group">';
+    html += '<label><i class="fas fa-clock"></i> 选择时间段</label>';
+    html += '<div class="time-picker-container">';
+    html += '<select id="startTime" class="time-select"><option value="">开始时间</option>';
+    options.forEach(o => html += `<option value="${o.value}">${o.label}</option>`);
+    html += '</select>';
+    html += '<span class="time-separator">至</span>';
+    html += '<select id="endTime" class="time-select"><option value="">结束时间</option>';
+    options.forEach(o => html += `<option value="${o.value}">${o.label}</option>`);
+    html += '</select>';
+    html += '</div>';
+    html += '<div id="timeValidation" class="time-validation"></div>';
+    html += '</div>';
 
-    elements.sessionOptions.innerHTML = html;
+    if (elements.timePickerContainer) {
+      elements.timePickerContainer.innerHTML = html;
+    }
 
-    // 添加点击事件
-    document.querySelectorAll(".session-option").forEach((option) => {
-      option.addEventListener("click", () => {
-        appState.selectedSession = option.dataset.sessionId;
-        this.renderSessionOptions();
-      });
-    });
+    // 添加时间验证事件
+    document.getElementById('startTime')?.addEventListener('change', validateTimeRange);
+    document.getElementById('endTime')?.addEventListener('change', validateTimeRange);
   },
 
   // 渲染统计数据
@@ -662,175 +835,90 @@ const render = {
         <div class="stat-value">${stats.total}</div>
         <div class="stat-label">总预定数</div>
       </div>
-      <div class="stat-item">
-        <div class="stat-value">${stats.morning}</div>
-        <div class="stat-label">早场预定</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">${stats.afternoon}</div>
-        <div class="stat-label">下午场预定</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">${stats.evening}</div>
-        <div class="stat-label">夜场预定</div>
-      </div>
     `;
   },
 
-  // 渲染筛选按钮
-  renderFilterButtons() {
-    let html = "";
-    appState.filters.forEach((filter) => {
-      const isActive = appState.filter === filter.id;
-      html += `
-        <button class="filter-btn ${isActive ? "active" : ""}"
-                data-filter-id="${filter.id}">
-          ${filter.name}
-        </button>
-      `;
-    });
-
-    elements.filterButtons.innerHTML = html;
-
-    // 添加点击事件
-    document.querySelectorAll(".filter-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        appState.filter = btn.dataset.filterId;
-        this.renderFilterButtons();
-        await loadBookings();
-      });
-    });
-  },
-
-  // 渲染预定列表
-  renderBookingsList() {
-    if (appState.bookings.length === 0) {
+  // 渲染甘特图
+  renderGanttChart() {
+    if (appState.timeSlotBookings.length === 0) {
       elements.emptyBoard.style.display = "block";
-      elements.bookingsList.innerHTML = "";
+      elements.boardContent.innerHTML = "";
       return;
     }
 
     elements.emptyBoard.style.display = "none";
 
-    let html = "";
-    appState.bookings.forEach((booking) => {
-      const sessionInfo = utils.getSessionInfo(booking.session);
-      const sessionClass = utils.getSessionClass(booking.session);
-
-      // 获取用户颜色和首字符
-      const userColor = booking.color || "#3498db";
-      const userName = booking.username || booking.name || "未知用户";
-      const userInitial = authUtils.getUserInitial(userName);
-
-      // 检查是否是当前用户的预定
-      const isOwnBooking =
-        appState.isAuthenticated &&
-        appState.currentUser &&
-        booking.user_id === appState.currentUser.id;
-
-      html += `
-        <div class="booking-item">
-          <div class="booking-header">
-            <div class="booking-name">
-              <div class="user-avatar-inline" style="
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: ${userColor};
-                color: white;
-                margin-right: 6px;
-                font-size: 0.8rem;
-                font-weight: 700;
-              ">
-                ${userInitial}
-              </div>
-              ${userName}
-            </div>
-            <div class="booking-session ${sessionClass}">
-              <i class="${sessionInfo.icon}"></i> ${sessionInfo.name}
-            </div>
-          </div>
-
-          <div class="booking-time">
-            <i class="far fa-clock"></i> ${utils.formatDate(booking.created_at)}
-          </div>
-
-          ${
-            booking.remark
-              ? `
-            <div class="booking-remark">
-              <i class="fas fa-quote-left"></i> ${booking.remark}
-            </div>
-          `
-              : ""
-          }
-
-          ${
-            isOwnBooking
-              ? `
-            <div class="booking-actions" style="margin-top: 10px;">
-              <button class="delete-booking-btn" data-booking-id="${booking.id}" style="
-                padding: 6px 12px;
-                border-radius: 6px;
-                border: 1px solid #e74c3c;
-                background: white;
-                color: #e74c3c;
-                cursor: pointer;
-                font-size: 0.85rem;
-                transition: all 0.3s;
-              ">
-                <i class="fas fa-trash"></i> 删除
-              </button>
-            </div>
-          `
-              : ""
-          }
-        </div>
-      `;
-    });
-
-    elements.bookingsList.innerHTML = html;
+    const html = ganttChart.render(appState.timeSlotBookings);
+    elements.boardContent.innerHTML = html;
 
     // 添加删除按钮事件
-    document.querySelectorAll(".delete-booking-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        handlers.handleDeleteBooking(parseInt(btn.dataset.bookingId));
-      });
+    document.querySelectorAll('.gantt-bar').forEach(bar => {
+      const bookingId = bar.dataset.id;
+      const isOwnBooking = appState.timeSlotBookings.find(b => b.id == bookingId)?.user_id === appState.currentUser?.id;
+
+      if (isOwnBooking) {
+        bar.classList.add('own-booking');
+        bar.addEventListener('click', () => handlers.handleDeleteBooking(bookingId));
+        bar.style.cursor = 'pointer';
+        bar.title = '点击删除';
+      }
     });
   },
 
   // 渲染所有组件
   renderAll() {
-    this.renderSessionOptions();
+    this.renderTimePicker();
     this.renderStats();
-    this.renderFilterButtons();
-    this.renderBookingsList();
+    this.renderGanttChart();
     this.renderAuthButton();
 
     // 更新登录提示状态
     if (elements.loginHint) {
       elements.loginHint.style.display = appState.isAuthenticated ? "none" : "block";
     }
+
+    // resetBookingsBtn 事件绑定已移除
   },
 };
 
 // 数据加载函数
-async function loadBookings() {
+async function loadTimeSlotBookings() {
   try {
-    const [bookings, stats] = await Promise.all([
-      api.getBookings(appState.filter),
-      api.getStats(),
-    ]);
-
-    appState.bookings = bookings;
-    appState.stats = stats;
-    render.renderAll();
+    const result = await api.getTimeSlotBookings(appState.selectedDate);
+    if (result.success) {
+      appState.timeSlotBookings = result.bookings || [];
+      appState.stats = result.stats || { total: 0 };
+      render.renderAll();
+    }
   } catch (error) {
-    console.error("加载数据失败:", error);
-    utils.showNotification("加载数据失败，请刷新页面重试", "error");
+    console.error("加载预定失败:", error);
+    utils.showNotification("加载预定失败，请刷新页面重试", "error");
+  }
+}
+
+// 时间范围验证函数
+function validateTimeRange() {
+  const start = document.getElementById('startTime')?.value;
+  const end = document.getElementById('endTime')?.value;
+  const el = document.getElementById('timeValidation');
+
+  if (!start || !end) {
+    if (el) el.textContent = '';
+    return;
+  }
+
+  const validation = timeUtils.validateTimeRange(start, end);
+  if (!validation.valid) {
+    if (el) {
+      el.textContent = validation.error;
+      el.style.color = '#e74c3c';
+    }
+  } else {
+    const duration = timeUtils.calculateDuration(start, end);
+    if (el) {
+      el.textContent = `时长：${Math.floor(duration / 60)}小时${duration % 60}分钟`;
+      el.style.color = '#27ae60';
+    }
   }
 }
 
@@ -891,7 +979,7 @@ const handlers = {
         utils.showNotification(`欢迎回来，${result.user.username}!`);
 
         // 重新加载数据
-        await loadBookings();
+        await loadTimeSlotBookings();
       } else {
         utils.showNotification(result.error || "登录失败", "error");
       }
@@ -934,18 +1022,9 @@ const handlers = {
     }
 
     try {
-      const result = await api.deleteBooking(bookingId);
-
-      if (result.success) {
-        appState.bookings = result.bookings || [];
-        appState.stats = result.stats || appState.stats;
-
-        render.renderAll();
-
-        utils.showNotification(result.message || "预定已删除");
-      } else {
-        utils.showNotification(result.error || "删除失败", "error");
-      }
+      await api.deleteTimeSlotBooking(bookingId);
+      await loadTimeSlotBookings();
+      utils.showNotification("预定已删除");
     } catch (error) {
       console.error("删除预定失败:", error);
       utils.showNotification(error.message || "删除预定失败，请稍后重试", "error");
@@ -963,24 +1042,30 @@ const handlers = {
       return;
     }
 
-    const remarkInput = document.getElementById("remark");
+    const startTime = document.getElementById('startTime')?.value;
+    const endTime = document.getElementById('endTime')?.value;
+    const remark = document.getElementById('remark')?.value.trim();
 
-    // 创建预定对象（不再需要name字段，使用登录用户的用户名）
-    const booking = {
-      remark: remarkInput.value.trim(),
-      session: appState.selectedSession,
-    };
+    // 验证时间
+    const validation = timeUtils.validateTimeRange(startTime, endTime);
+    if (!validation.valid) {
+      const el = document.getElementById('timeValidation');
+      if (el) {
+        el.textContent = validation.error;
+        el.style.color = '#e74c3c';
+      }
+      return;
+    }
 
     try {
       // 设置按钮加载状态
       utils.setButtonLoading(elements.submitBtn, true);
 
       // 提交预定
-      const result = await api.addBooking(booking);
+      const result = await api.addTimeSlotBooking({ startTime, endTime, remark });
 
       if (result.success) {
-        // 更新应用状态
-        appState.bookings = result.bookings || [];
+        appState.timeSlotBookings = result.bookings || [];
         appState.stats = result.stats || appState.stats;
 
         // 重新渲染
@@ -990,7 +1075,11 @@ const handlers = {
         utils.showNotification("预定成功！已添加到看板");
 
         // 重置表单
-        remarkInput.value = "";
+        document.getElementById('remark').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        const validationEl = document.getElementById('timeValidation');
+        if (validationEl) validationEl.textContent = '';
       } else {
         utils.showNotification(result.error || "预定失败", "error");
       }
@@ -1002,6 +1091,8 @@ const handlers = {
       utils.setButtonLoading(elements.submitBtn, false);
     }
   },
+
+  // handleResetBookings 已移除
 
   // 初始化事件监听
   initEventListeners() {
@@ -1044,7 +1135,7 @@ async function initApp() {
     const authPromise = authUtils.checkAuthStatus().then(() => {
       render.renderAll();
     });
-    const bookingsPromise = loadBookings();
+    const bookingsPromise = loadTimeSlotBookings();
     await Promise.allSettled([authPromise, bookingsPromise]);
   } catch (error) {
     console.error("应用初始化失败:", error);
@@ -1058,7 +1149,7 @@ document.addEventListener("DOMContentLoaded", initApp);
 // 处理离线/在线状态
 window.addEventListener("online", () => {
   utils.showNotification("网络已恢复，正在同步数据...", "warning", 2000);
-  loadBookings();
+  loadTimeSlotBookings();
 });
 
 window.addEventListener("offline", () => {
