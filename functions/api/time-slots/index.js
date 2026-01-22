@@ -12,7 +12,7 @@ export async function onRequest(context) {
   const db = env.DB;
 
   // 确保数据库已初始化
-  await ensureDatabase(env);
+  await ensureDatabase(db);
 
   // CORS 处理
   if (request.method === "OPTIONS") {
@@ -33,8 +33,10 @@ export async function onRequest(context) {
 
     // GET - 获取时间段预定列表
     if (request.method === "GET") {
-      const bookings = await getTimeSlotBookings(db, date);
-      const stats = await getTimeSlotStats(db, date);
+      const [bookings, stats] = await Promise.all([
+        getTimeSlotBookings(db, date),
+        getTimeSlotStats(db, date),
+      ]);
 
       return new Response(JSON.stringify({ success: true, bookings, stats }), {
         headers: { "Content-Type": "application/json" },
@@ -74,8 +76,10 @@ export async function onRequest(context) {
         bookingDate: date,
       });
 
-      const bookings = await getTimeSlotBookings(db, date);
-      const stats = await getTimeSlotStats(db, date);
+      const [bookings, stats] = await Promise.all([
+        getTimeSlotBookings(db, date),
+        getTimeSlotStats(db, date),
+      ]);
 
       return new Response(JSON.stringify({ success: true, bookings, stats }), {
         headers: { "Content-Type": "application/json" },

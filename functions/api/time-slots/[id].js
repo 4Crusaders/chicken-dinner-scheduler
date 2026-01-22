@@ -6,7 +6,7 @@ export async function onRequest(context) {
   const bookingId = params.id;
 
   // 确保数据库已初始化
-  await ensureDatabase(env);
+  await ensureDatabase(db);
 
   if (request.method === "OPTIONS") {
     return new Response(null, {

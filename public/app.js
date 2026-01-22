@@ -412,7 +412,7 @@ const ganttChart = {
   },
 
   // 渲染甘特图
-  render(bookings) {
+  render(bookings, currentUserId) {
     // 按用户分组并合并重叠时间段
     const userMap = new Map();
     bookings.forEach(b => {
@@ -458,8 +458,9 @@ const ganttChart = {
     // 按第一个时间段开始时间排序行
     userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
 
-    // 计算甘特图总宽度
+    // 计算甘特图总宽度和动态高度
     const totalWidth = (this.config.endHour - this.config.startHour) * this.config.hourWidth;
+    const bodyHeight = Math.max(200, userRows.length * this.config.rowHeight);
 
     let html = '<div class="gantt-chart"><div class="gantt-scroll-container">';
 
@@ -471,22 +472,27 @@ const ganttChart = {
     html += '</div>';
 
     // 渲染用户行
-    html += `<div class="gantt-body" style="width: ${totalWidth}px;">`;
+    html += `<div class="gantt-body" style="width: ${totalWidth}px; height: ${bodyHeight}px;">`;
     userRows.forEach((row, rowIndex) => {
       const rowTop = rowIndex * this.config.rowHeight;
 
       // 该用户的所有时间段条
       row.timeSlots.forEach(slot => {
         const { left, width } = this.calculateLayout(slot);
+        const isOwnBooking = slot.user_id === currentUserId;
 
         html += `
-          <div class="gantt-bar" style="
+          <div class="gantt-bar ${isOwnBooking ? 'own-booking' : ''}"
+            role="${isOwnBooking ? 'button' : 'article'}"
+            ${isOwnBooking ? 'tabindex="0"' : ''}
+            style="
             left: ${left}px;
             width: ${width}px;
             top: ${rowTop}px;
             background: ${row.color};
             opacity: 0.9;
-          " data-id="${slot.id}">
+            ${isOwnBooking ? 'cursor: pointer;' : ''}
+          " data-id="${slot.id}" ${isOwnBooking ? `title="点击删除" aria-label="删除预定: ${slot.start_time}-${slot.end_time}"` : ''}>
             <span class="gantt-bar-username">${row.username}</span>
             <span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>
             ${slot.remark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
@@ -815,8 +821,12 @@ const render = {
     });
   },
 
+  isTimePickerInitialized: false,
+
   // 渲染时间选择器
   renderTimePicker() {
+    if (this.isTimePickerInitialized) return;
+
     const options = timeUtils.generateTimeOptions();
     let html = '<div class="form-group">';
     html += '<label><i class="fas fa-clock"></i> 选择时间段</label>';
@@ -839,6 +849,8 @@ const render = {
     // 添加时间验证事件
     document.getElementById('startTime')?.addEventListener('change', validateTimeRange);
     document.getElementById('endTime')?.addEventListener('change', validateTimeRange);
+
+    this.isTimePickerInitialized = true;
   },
 
   // 渲染统计数据
@@ -863,26 +875,12 @@ const render = {
 
     elements.emptyBoard.style.display = "none";
 
-    const html = ganttChart.render(appState.timeSlotBookings);
+    const html = ganttChart.render(appState.timeSlotBookings, appState.currentUser?.id);
     elements.boardContent.innerHTML = html;
-
-    // 添加删除按钮事件
-    document.querySelectorAll('.gantt-bar').forEach(bar => {
-      const bookingId = bar.dataset.id;
-      const isOwnBooking = appState.timeSlotBookings.find(b => b.id == bookingId)?.user_id === appState.currentUser?.id;
-
-      if (isOwnBooking) {
-        bar.classList.add('own-booking');
-        bar.addEventListener('click', () => handlers.handleDeleteBooking(bookingId));
-        bar.style.cursor = 'pointer';
-        bar.title = '点击删除';
-      }
-    });
   },
 
   // 渲染所有组件
   renderAll() {
-    this.renderTimePicker();
     this.renderStats();
     this.renderGanttChart();
     this.renderAuthButton();
@@ -897,13 +895,13 @@ const render = {
 };
 
 // 数据加载函数
-async function loadTimeSlotBookings() {
+async function loadTimeSlotBookings(skipRender = false) {
   try {
     const result = await api.getTimeSlotBookings(appState.selectedDate);
     if (result.success) {
       appState.timeSlotBookings = result.bookings || [];
       appState.stats = result.stats || { total: 0 };
-      render.renderAll();
+      if (!skipRender) render.renderAll();
     }
   } catch (error) {
     console.error("加载预定失败:", error);
@@ -1135,10 +1133,8 @@ const handlers = {
   // 处理覆盖冲突预定
   async handleOverwriteConflicts(conflicts, newBooking) {
     try {
-      // 删除所有冲突的预定
-      for (const conflict of conflicts) {
-        await api.deleteTimeSlotBooking(conflict.id);
-      }
+      // 并行执行删除请求
+      await Promise.all(conflicts.map(conflict => api.deleteTimeSlotBooking(conflict.id)));
 
       // 创建新预定
       const result = await api.addTimeSlotBooking(newBooking);
@@ -1192,6 +1188,25 @@ const handlers = {
         this.showAuthModal("register");
       });
     }
+
+    // 甘特图条目点击事件委托
+    elements.boardContent.addEventListener("click", (e) => {
+      const bar = e.target.closest('.gantt-bar.own-booking');
+      if (bar) {
+        this.handleDeleteBooking(bar.dataset.id);
+      }
+    });
+
+    // 甘特图条目键盘事件委托
+    elements.boardContent.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        const bar = e.target.closest('.gantt-bar.own-booking');
+        if (bar) {
+          e.preventDefault();
+          this.handleDeleteBooking(bar.dataset.id);
+        }
+      }
+    });
   },
 };
 
@@ -1204,15 +1219,15 @@ async function initApp() {
     // 初始化事件监听
     handlers.initEventListeners();
 
-    // 初始渲染
-    render.renderAll();
+    // 初始化时间选择器
+    render.renderTimePicker();
 
-    // 并行加载登录态和数据，避免阻塞首屏
-    const authPromise = authUtils.checkAuthStatus().then(() => {
-      render.renderAll();
-    });
-    const bookingsPromise = loadTimeSlotBookings();
+    // 并行加载登录态和数据，仅在最后渲染一次
+    const authPromise = authUtils.checkAuthStatus();
+    const bookingsPromise = loadTimeSlotBookings(true);
+
     await Promise.allSettled([authPromise, bookingsPromise]);
+    render.renderAll();
   } catch (error) {
     console.error("应用初始化失败:", error);
     utils.showNotification("应用初始化失败，请刷新页面重试", "error", 5000);

@@ -9,7 +9,7 @@ export async function onRequest(context) {
     request.method === "POST" &&
     new URL(request.url).pathname.endsWith("/init")
   ) {
-    await initDatabase(db);
+    await ensureDatabase(db);
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json" },
     });
