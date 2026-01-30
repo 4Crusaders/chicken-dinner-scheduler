@@ -481,8 +481,15 @@ const ganttChart = {
         const { left, width } = this.calculateLayout(slot);
         const isOwnBooking = slot.user_id === currentUserId;
 
+        // 根据宽度智能显示内容
+        const minWidthForTime = 80;  // 最小显示时间的宽度
+        const minWidthForRemark = 150; // 最小显示备注的宽度
+        const showTime = width >= minWidthForTime;
+        const showRemark = width >= minWidthForRemark && slot.remark;
+        const isCompact = width < minWidthForTime;
+
         html += `
-          <div class="gantt-bar ${isOwnBooking ? 'own-booking' : ''}"
+          <div class="gantt-bar ${isOwnBooking ? 'own-booking' : ''} ${isCompact ? 'gantt-bar-compact' : ''}"
             role="${isOwnBooking ? 'button' : 'article'}"
             ${isOwnBooking ? 'tabindex="0"' : ''}
             style="
@@ -492,10 +499,35 @@ const ganttChart = {
             background: ${row.color};
             opacity: 0.9;
             ${isOwnBooking ? 'cursor: pointer;' : ''}
-          " data-id="${slot.id}" ${isOwnBooking ? `title="点击删除" aria-label="删除预定: ${slot.start_time}-${slot.end_time}"` : ''}>
-            <span class="gantt-bar-username">${row.username}</span>
-            <span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>
-            ${slot.remark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
+          "
+          data-id="${slot.id}"
+          data-username="${row.username}"
+          data-time="${slot.start_time}-${slot.end_time}"
+          data-remark="${slot.remark || ''}"
+          ${isOwnBooking ? `aria-label="删除预定: ${slot.start_time}-${slot.end_time}"` : ''}>
+            <span class="gantt-bar-username">${isCompact ? row.username.charAt(0) : row.username}</span>
+            ${showTime ? `<span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>` : ''}
+            ${showRemark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
+
+            <!-- Tactical Tooltip -->
+            <div class="gantt-tooltip">
+              <div class="gantt-tooltip-header">
+                <i class="fas fa-user-shield"></i> ${row.username}
+              </div>
+              <div class="gantt-tooltip-time">
+                <i class="fas fa-clock"></i> ${slot.start_time} - ${slot.end_time}
+              </div>
+              ${slot.remark ? `
+                <div class="gantt-tooltip-remark">
+                  <i class="fas fa-comment-dots"></i> ${slot.remark}
+                </div>
+              ` : ''}
+              ${isOwnBooking ? `
+                <div class="gantt-tooltip-action">
+                  <i class="fas fa-trash-alt"></i> 点击删除此部署
+                </div>
+              ` : ''}
+            </div>
           </div>
         `;
       });

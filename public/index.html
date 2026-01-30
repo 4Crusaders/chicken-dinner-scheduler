@@ -519,6 +519,111 @@
         font-weight: 400;
       }
 
+      /* ==================== COMPACT GANTT BAR ==================== */
+      .gantt-bar-compact .gantt-bar-username {
+        font-size: 1rem;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 50%;
+        border: 2px solid var(--pubg-yellow);
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+      }
+
+      /* ==================== TACTICAL TOOLTIP ==================== */
+      .gantt-tooltip {
+        position: absolute;
+        bottom: calc(100% + 12px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.9);
+        background: var(--pubg-panel-bg);
+        border: 2px solid var(--pubg-orange);
+        padding: 12px 16px;
+        border-radius: 0;
+        box-shadow: var(--glow-orange), 0 10px 40px rgba(0, 0, 0, 0.8);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        pointer-events: none;
+        z-index: 1000;
+        min-width: 200px;
+        white-space: nowrap;
+        font-family: var(--font-body);
+      }
+
+      .gantt-tooltip::before {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 8px solid transparent;
+        border-top-color: var(--pubg-orange);
+      }
+
+      .gantt-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--pubg-yellow), transparent);
+        animation: scan-horizontal 2s ease-in-out infinite;
+      }
+
+      .gantt-bar:hover .gantt-tooltip {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) scale(1);
+      }
+
+      .gantt-tooltip-header {
+        font-weight: 700;
+        color: var(--pubg-yellow);
+        margin-bottom: 8px;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .gantt-tooltip-header i,
+      .gantt-tooltip-time i,
+      .gantt-tooltip-remark i,
+      .gantt-tooltip-action i {
+        color: var(--pubg-orange);
+        margin-right: 8px;
+      }
+
+      .gantt-tooltip-time {
+        color: var(--pubg-text);
+        margin-bottom: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .gantt-tooltip-remark {
+        color: var(--pubg-text-muted);
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        white-space: normal;
+        max-width: 250px;
+      }
+
+      .gantt-tooltip-action {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--pubg-border);
+        color: var(--pubg-danger);
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
       /* ==================== EMPTY STATE ==================== */
       .empty-board {
         text-align: center;
@@ -702,6 +807,21 @@
           margin-right: 5px;
         }
 
+        .gantt-bar-remark {
+          display: none;
+        }
+
+        /* 移动端 tooltip 优化 */
+        .gantt-tooltip {
+          min-width: 180px;
+          font-size: 0.85rem;
+          bottom: calc(100% + 8px);
+        }
+
+        .gantt-tooltip-header {
+          font-size: 0.9rem;
+        }
+
         .stat-value {
           font-size: 2rem;
         }
@@ -725,6 +845,16 @@
           max-width: 60px;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        /* 超小屏幕 tooltip 简化 */
+        .gantt-tooltip {
+          min-width: 160px;
+          padding: 10px 12px;
+        }
+
+        .gantt-tooltip-remark {
+          max-width: 180px;
         }
       }
 
