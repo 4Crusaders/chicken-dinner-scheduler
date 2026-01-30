@@ -403,8 +403,7 @@
       }
 
       .gantt-scroll-container {
-        overflow-x: auto;
-        overflow-y: hidden;
+        overflow: visible;
       }
 
       .gantt-scroll-container::-webkit-scrollbar {
@@ -576,7 +575,24 @@
         right: 0;
         height: 2px;
         background: linear-gradient(90deg, transparent, var(--pubg-yellow), transparent);
-        animation: scan-horizontal 2s ease-in-out infinite;
+        background-size: 200% 100%;
+        background-position: -150% 0;
+        animation: scan-tooltip 2s ease-in-out infinite;
+      }
+
+      @keyframes scan-tooltip {
+        0% {
+          background-position: -150% 0;
+          opacity: 0.6;
+        }
+        50% {
+          background-position: 0% 0;
+          opacity: 1;
+        }
+        100% {
+          background-position: 150% 0;
+          opacity: 0.6;
+        }
       }
 
       .gantt-bar:hover .gantt-tooltip {
