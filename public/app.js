@@ -397,20 +397,6 @@ const ganttChart = {
     return merged.sort((a, b) => a.start_time.localeCompare(b.start_time));
   },
 
-  // 计算位置和宽度
-  calculateLayout(booking) {
-    const [startH, startM] = booking.start_time.split(':').map(Number);
-    const [endH, endM] = booking.end_time.split(':').map(Number);
-
-    const startMinutes = (startH - this.config.startHour) * 60 + startM;
-    const duration = (endH * 60 + endM) - (startH * 60 + startM);
-
-    const left = Math.max(0, (startMinutes / 60) * this.config.hourWidth);
-    const width = (duration / 60) * this.config.hourWidth;
-
-    return { left, width };
-  },
-
   // 渲染甘特图
   render(bookings, currentUserId) {
     // 按用户分组并合并重叠时间段
@@ -458,43 +444,52 @@ const ganttChart = {
     // 按第一个时间段开始时间排序行
     userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
 
-    // 计算甘特图总宽度和动态高度
-    const totalWidth = (this.config.endHour - this.config.startHour) * this.config.hourWidth;
+    // 计算总分钟数
+    const totalMinutes = (this.config.endHour - this.config.startHour) * 60;
     const bodyHeight = Math.max(200, userRows.length * this.config.rowHeight);
 
     let html = '<div class="gantt-chart"><div class="gantt-scroll-container">';
 
     // 渲染时间轴
-    html += `<div class="timeline-header" style="width: ${totalWidth}px;">`;
+    html += `<div class="timeline-header">`;
     for (let h = this.config.startHour; h < this.config.endHour; h++) {
-      html += `<div class="timeline-hour">${String(h).padStart(2, '0')}:00</div>`;
+      // 每个小时的宽度使用百分比
+      const percentWidth = (60 / totalMinutes) * 100;
+      html += `<div class="timeline-hour" style="width: ${percentWidth}%">${String(h).padStart(2, '0')}:00</div>`;
     }
     html += '</div>';
 
     // 渲染用户行
-    html += `<div class="gantt-body" style="width: ${totalWidth}px; height: ${bodyHeight}px;">`;
+    html += `<div class="gantt-body" style="height: ${bodyHeight}px;">`;
     userRows.forEach((row, rowIndex) => {
       const rowTop = rowIndex * this.config.rowHeight;
 
       // 该用户的所有时间段条
       row.timeSlots.forEach(slot => {
-        const { left, width } = this.calculateLayout(slot);
+        const [startH, startM] = slot.start_time.split(':').map(Number);
+        const [endH, endM] = slot.end_time.split(':').map(Number);
+
+        // 计算开始时间和持续时间的百分比
+        const startMinutes = (startH - this.config.startHour) * 60 + startM;
+        const duration = (endH * 60 + endM) - (startH * 60 + startM);
+
+        const leftPercent = (startMinutes / totalMinutes) * 100;
+        const widthPercent = (duration / totalMinutes) * 100;
+
         const isOwnBooking = slot.user_id === currentUserId;
 
-        // 根据宽度智能显示内容
-        const minWidthForTime = 80;  // 最小显示时间的宽度
-        const minWidthForRemark = 150; // 最小显示备注的宽度
-        const showTime = width >= minWidthForTime;
-        const showRemark = width >= minWidthForRemark && slot.remark;
-        const isCompact = width < minWidthForTime;
+        // 宽度过小时简化显示
+        const isCompact = widthPercent < 5; // 小于5%时视为紧凑模式
+        const showTime = widthPercent >= 8;
+        const showRemark = widthPercent >= 15 && slot.remark;
 
         html += `
           <div class="gantt-bar ${isOwnBooking ? 'own-booking' : ''} ${isCompact ? 'gantt-bar-compact' : ''}"
             role="${isOwnBooking ? 'button' : 'article'}"
             ${isOwnBooking ? 'tabindex="0"' : ''}
             style="
-            left: ${left}px;
-            width: ${width}px;
+            left: ${leftPercent}%;
+            width: ${widthPercent}%;
             top: ${rowTop}px;
             background: ${row.color};
             opacity: 0.9;
