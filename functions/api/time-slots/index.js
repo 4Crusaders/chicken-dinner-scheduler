@@ -4,6 +4,7 @@ import {
   getTimeSlotBookings,
   deleteTimeSlotBooking,
   getTimeSlotStats,
+  cleanupExpiredTimeSlotBookings,
   getSessionUser,
 } from "../d1-client.js";
 
@@ -13,6 +14,7 @@ export async function onRequest(context) {
 
   // 确保数据库已初始化
   await ensureDatabase(db);
+  await cleanupExpiredTimeSlotBookings(db);
 
   // CORS 处理
   if (request.method === "OPTIONS") {

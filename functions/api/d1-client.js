@@ -179,6 +179,29 @@ export async function clearAllBookings(db) {
 
 // ========== 时间段预定相关函数 ==========
 
+// 清理过期时间段预定
+// 规则：
+// 1) 超过当前时间 1 小时的已结束预定（仅限当天）
+// 2) 00:00 之后直接清理前一天及更早记录
+export async function cleanupExpiredTimeSlotBookings(db) {
+  const deletePastDays = await db
+    .prepare(`DELETE FROM time_slot_bookings WHERE booking_date < date('now')`)
+    .run();
+
+  const deleteExpiredToday = await db
+    .prepare(
+      `DELETE FROM time_slot_bookings
+       WHERE booking_date = date('now')
+         AND datetime(booking_date || ' ' || end_time) <= datetime('now', '-1 hour')`
+    )
+    .run();
+
+  return {
+    pastDays: deletePastDays?.changes || 0,
+    expiredToday: deleteExpiredToday?.changes || 0,
+  };
+}
+
 // 添加时间段预定
 export async function addTimeSlotBooking(db, { userId, remark, startTime, endTime, bookingDate }) {
   const result = await db
