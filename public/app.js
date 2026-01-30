@@ -280,10 +280,10 @@ const utils = {
     if (isLoading) {
       button.disabled = true;
       button.dataset.originalText = button.innerHTML;
-      button.innerHTML = '<span class="loading"></span> 处理中...';
+      button.innerHTML = '<span class="loading"></span> 部署中...';
     } else {
       button.disabled = false;
-      button.innerHTML = originalText || button.dataset.originalText || '<i class="fas fa-paper-plane"></i> 提交预定';
+      button.innerHTML = originalText || button.dataset.originalText || '<i class="fas fa-rocket"></i> 确认部署';
     }
   },
 };
@@ -829,7 +829,7 @@ const render = {
 
     const options = timeUtils.generateTimeOptions();
     let html = '<div class="form-group">';
-    html += '<label><i class="fas fa-clock"></i> 选择时间段</label>';
+    html += '<label><i class="fas fa-clock"></i> 作战时间段</label>';
     html += '<div class="time-picker-container">';
     html += '<select id="startTime" class="time-select"><option value="">开始时间</option>';
     options.forEach(o => html += `<option value="${o.value}">${o.label}</option>`);
@@ -860,7 +860,7 @@ const render = {
     elements.stats.innerHTML = `
       <div class="stat-item">
         <div class="stat-value">${stats.total}</div>
-        <div class="stat-label">总预定数</div>
+        <div class="stat-label">总部署数</div>
       </div>
     `;
   },
