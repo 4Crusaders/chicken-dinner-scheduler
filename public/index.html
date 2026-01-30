@@ -447,6 +447,7 @@
         min-height: 200px;
         padding-left: 0;
         flex-shrink: 0;
+        padding-top: 80px; /* 为顶部tooltip留出空间 */
       }
 
       .gantt-bar {
@@ -460,7 +461,7 @@
         font-size: 0.9rem;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.1);
         transition: all 0.3s;
-        /* overflow: hidden 已移除 - 会裁剪tooltip */
+        /* overflow: visible - 允许tooltip显示 */
         white-space: nowrap;
         border: 2px solid rgba(0, 0, 0, 0.3);
         font-family: var(--font-body);
@@ -474,16 +475,12 @@
         text-overflow: ellipsis;
       }
 
+      /* 移除 ::before 伪元素的shine效果，解决两侧阴影问题 */
       .gantt-bar::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-        transition: left 0.5s;
+        display: none;
       }
+
+      /* Tooltip 必须放在 bar 外部才能显示 - 通过 JS 动态定位 */
 
       .gantt-bar:hover {
         transform: translateY(-3px);
