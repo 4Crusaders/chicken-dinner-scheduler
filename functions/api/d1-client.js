@@ -183,17 +183,19 @@ export async function clearAllBookings(db) {
 // 规则：
 // 1) 超过当前时间 1 小时的已结束预定（仅限当天）
 // 2) 00:00 之后直接清理前一天及更早记录
-export async function cleanupExpiredTimeSlotBookings(db) {
+export async function cleanupExpiredTimeSlotBookings(db, tzOffset = "+00:00") {
   const deletePastDays = await db
-    .prepare(`DELETE FROM time_slot_bookings WHERE booking_date < date('now')`)
+    .prepare(`DELETE FROM time_slot_bookings WHERE booking_date < date('now', ?)`)
+    .bind(tzOffset)
     .run();
 
   const deleteExpiredToday = await db
     .prepare(
       `DELETE FROM time_slot_bookings
-       WHERE booking_date = date('now')
-         AND datetime(booking_date || ' ' || end_time) <= datetime('now', '-1 hour')`
+       WHERE booking_date = date('now', ?)
+         AND datetime(booking_date || ' ' || end_time) <= datetime('now', ?, '-1 hour')`
     )
+    .bind(tzOffset, tzOffset)
     .run();
 
   return {

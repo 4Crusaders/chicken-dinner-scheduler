@@ -16,7 +16,7 @@ const COLORS = [
 // 应用状态
 const appState = {
   timeSlotBookings: [],
-  selectedDate: new Date().toISOString().split('T')[0],
+  selectedDate: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0],
   stats: {
     total: 0,
   },
@@ -67,6 +67,15 @@ const tokenStorage = {
       console.warn("无法清理本地token:", error);
     }
   },
+};
+
+const getTimezoneOffsetString = () => {
+  const offsetMinutes = -new Date().getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absMinutes = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absMinutes / 60)).padStart(2, "0");
+  const minutes = String(absMinutes % 60).padStart(2, "0");
+  return `${sign}${hours}:${minutes}`;
 };
 
 // API服务
@@ -185,14 +194,31 @@ const api = {
 
   // 获取时间段预定列表
   async getTimeSlotBookings(date = null) {
-    const query = date ? `?date=${date}` : '';
+    const tzOffset = getTimezoneOffsetString();
+    const queryParts = [];
+    if (date) {
+      queryParts.push(`date=${encodeURIComponent(date)}`);
+    }
+    if (tzOffset) {
+      queryParts.push(`tzOffset=${encodeURIComponent(tzOffset)}`);
+    }
+    const query = queryParts.length ? `?${queryParts.join("&")}` : "";
     return await this.request(`/time-slots${query}`);
   },
 
   // 添加时间段预定
-  async addTimeSlotBooking({ startTime, endTime, remark }) {
-    return await this.request('/time-slots', {
-      method: 'POST',
+  async addTimeSlotBooking({ startTime, endTime, remark, date = null }) {
+    const tzOffset = getTimezoneOffsetString();
+    const queryParts = [];
+    if (date) {
+      queryParts.push(`date=${encodeURIComponent(date)}`);
+    }
+    if (tzOffset) {
+      queryParts.push(`tzOffset=${encodeURIComponent(tzOffset)}`);
+    }
+    const query = queryParts.length ? `?${queryParts.join("&")}` : "";
+    return await this.request(`/time-slots${query}`, {
+      method: "POST",
       body: JSON.stringify({ startTime, endTime, remark }),
     });
   },
@@ -1157,7 +1183,12 @@ const handlers = {
       }
 
       // 无冲突，直接提交预定
-      const result = await api.addTimeSlotBooking({ startTime, endTime, remark });
+      const result = await api.addTimeSlotBooking({
+        startTime,
+        endTime,
+        remark,
+        date: appState.selectedDate,
+      });
 
       if (result.success) {
         appState.timeSlotBookings = result.bookings || [];
@@ -1194,7 +1225,10 @@ const handlers = {
       await Promise.all(conflicts.map(conflict => api.deleteTimeSlotBooking(conflict.id)));
 
       // 创建新预定
-      const result = await api.addTimeSlotBooking(newBooking);
+      const result = await api.addTimeSlotBooking({
+        ...newBooking,
+        date: appState.selectedDate,
+      });
 
       if (result.success) {
         appState.timeSlotBookings = result.bookings || [];

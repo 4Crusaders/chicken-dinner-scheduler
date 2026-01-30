@@ -12,9 +12,33 @@ export async function onRequest(context) {
   const { request, env } = context;
   const db = env.DB;
 
+  const normalizeTzOffset = (value) => {
+    if (!value) return "+00:00";
+    const match = value.match(/^([+-])(\d{2}):(\d{2})$/);
+    if (!match) return "+00:00";
+    const hours = Number.parseInt(match[2], 10);
+    const minutes = Number.parseInt(match[3], 10);
+    if (hours > 14 || minutes > 59) return "+00:00";
+    return `${match[1]}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  };
+
+  const getLocalDateString = (offsetMinutes) => {
+    const now = new Date();
+    const localMs = now.getTime() + offsetMinutes * 60 * 1000;
+    return new Date(localMs).toISOString().split("T")[0];
+  };
+
+  const parseOffsetMinutes = (offset) => {
+    const match = offset.match(/^([+-])(\d{2}):(\d{2})$/);
+    if (!match) return 0;
+    const sign = match[1] === "+" ? 1 : -1;
+    const hours = Number.parseInt(match[2], 10);
+    const minutes = Number.parseInt(match[3], 10);
+    return sign * (hours * 60 + minutes);
+  };
+
   // 确保数据库已初始化
   await ensureDatabase(db);
-  await cleanupExpiredTimeSlotBookings(db);
 
   // CORS 处理
   if (request.method === "OPTIONS") {
@@ -31,7 +55,11 @@ export async function onRequest(context) {
 
   try {
     const url = new URL(request.url);
-    const date = url.searchParams.get("date") || new Date().toISOString().split('T')[0];
+    const tzOffset = normalizeTzOffset(url.searchParams.get("tzOffset"));
+    const offsetMinutes = parseOffsetMinutes(tzOffset);
+    const date = url.searchParams.get("date") || getLocalDateString(offsetMinutes);
+
+    await cleanupExpiredTimeSlotBookings(db, tzOffset);
 
     // GET - 获取时间段预定列表
     if (request.method === "GET") {
