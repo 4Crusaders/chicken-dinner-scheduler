@@ -503,9 +503,6 @@ const ganttChart = {
         const startMinutes = (startH - displayStartHour) * 60 + startM;
         const duration = (endH * 60 + endM) - (startH * 60 + startM);
 
-        // 如果开始时间小于动态起始时间（理论上不应发生，除非跨天），裁剪
-        // 但这里简化处理，假设都在范围内
-
         const leftPercent = (startMinutes / totalMinutes) * 100;
         const widthPercent = (duration / totalMinutes) * 100;
 
@@ -537,7 +534,7 @@ const ganttChart = {
             ${showTime ? `<span class="gantt-bar-text">${slot.start_time}-${slot.end_time}</span>` : ''}
             ${showRemark ? `<span class="gantt-bar-remark">${slot.remark}</span>` : ''}
 
-            <!-- Tactical Tooltip -->
+            <!-- Tactical Tooltip (Restored) -->
             <div class="gantt-tooltip">
               <div class="gantt-tooltip-header">
                 <i class="fas fa-user-shield"></i> ${row.username}
