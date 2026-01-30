@@ -399,7 +399,39 @@ const ganttChart = {
 
   // 渲染甘特图
   render(bookings, currentUserId) {
-    // 按用户分组并合并重叠时间段
+    // 1. 计算动态时间轴范围
+    let displayStartHour = this.config.startHour;
+    let displayEndHour = this.config.endHour;
+
+    if (bookings && bookings.length > 0) {
+      let minH = 24;
+      let maxH = 0;
+
+      bookings.forEach(b => {
+        const [sH] = b.start_time.split(':').map(Number);
+        const [eH, eM] = b.end_time.split(':').map(Number);
+        
+        if (sH < minH) minH = sH;
+        
+        // 结束时间如果有分钟，视为占用下一个小时
+        const effectiveEndH = eM > 0 ? eH + 1 : eH;
+        if (effectiveEndH > maxH) maxH = effectiveEndH;
+      });
+
+      // 左右各留1小时余量，并限制在0-24之间
+      displayStartHour = Math.max(0, minH - 1);
+      displayEndHour = Math.min(24, maxH + 1);
+
+      // 确保至少显示4个小时，避免太窄
+      if (displayEndHour - displayStartHour < 4) {
+        displayEndHour = Math.min(24, displayStartHour + 4);
+        if (displayEndHour - displayStartHour < 4) {
+          displayStartHour = Math.max(0, displayEndHour - 4);
+        }
+      }
+    }
+
+    // 2. 按用户分组并合并重叠时间段
     const userMap = new Map();
     bookings.forEach(b => {
       if (!userMap.has(b.user_id)) userMap.set(b.user_id, []);
@@ -444,16 +476,15 @@ const ganttChart = {
     // 按第一个时间段开始时间排序行
     userRows.sort((a, b) => a.timeSlots[0].start_time.localeCompare(b.timeSlots[0].start_time));
 
-    // 计算总分钟数
-    const totalMinutes = (this.config.endHour - this.config.startHour) * 60;
+    // 计算总分钟数（基于动态范围）
+    const totalMinutes = (displayEndHour - displayStartHour) * 60;
     const bodyHeight = Math.max(200, userRows.length * this.config.rowHeight);
 
     let html = '<div class="gantt-chart"><div class="gantt-scroll-container">';
 
-    // 渲染时间轴
+    // 渲染时间轴（基于动态范围）
     html += `<div class="timeline-header">`;
-    for (let h = this.config.startHour; h < this.config.endHour; h++) {
-      // 每个小时的宽度使用百分比
+    for (let h = displayStartHour; h < displayEndHour; h++) {
       const percentWidth = (60 / totalMinutes) * 100;
       html += `<div class="timeline-hour" style="width: ${percentWidth}%">${String(h).padStart(2, '0')}:00</div>`;
     }
@@ -464,14 +495,16 @@ const ganttChart = {
     userRows.forEach((row, rowIndex) => {
       const rowTop = rowIndex * this.config.rowHeight;
 
-      // 该用户的所有时间段条
       row.timeSlots.forEach(slot => {
         const [startH, startM] = slot.start_time.split(':').map(Number);
         const [endH, endM] = slot.end_time.split(':').map(Number);
 
-        // 计算开始时间和持续时间的百分比
-        const startMinutes = (startH - this.config.startHour) * 60 + startM;
+        // 计算相对于动态起始时间的分钟数
+        const startMinutes = (startH - displayStartHour) * 60 + startM;
         const duration = (endH * 60 + endM) - (startH * 60 + startM);
+
+        // 如果开始时间小于动态起始时间（理论上不应发生，除非跨天），裁剪
+        // 但这里简化处理，假设都在范围内
 
         const leftPercent = (startMinutes / totalMinutes) * 100;
         const widthPercent = (duration / totalMinutes) * 100;
@@ -479,7 +512,7 @@ const ganttChart = {
         const isOwnBooking = slot.user_id === currentUserId;
 
         // 宽度过小时简化显示
-        const isCompact = widthPercent < 5; // 小于5%时视为紧凑模式
+        const isCompact = widthPercent < 5;
         const showTime = widthPercent >= 8;
         const showRemark = widthPercent >= 15 && slot.remark;
 
